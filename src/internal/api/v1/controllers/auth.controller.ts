@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from '../../../services/auth.service';
 import { registerSchema, loginSchema, refreshSchema } from '../../../validators/authValidator';
+import { sendSuccess } from '../../../shared/responses';
+import { UnauthorizedError } from '../../../shared/errors';
 
 const service = new AuthService();
 
@@ -9,7 +11,7 @@ export class AuthController {
     try {
       const parsed = registerSchema.parse(req.body);
       const result = await service.register(parsed);
-      res.status(201).json(result);
+      sendSuccess(res, result, 'User registered successfully', 201);
     } catch (err) {
       next(err);
     }
@@ -19,7 +21,7 @@ export class AuthController {
     try {
       const parsed = loginSchema.parse(req.body);
       const result = await service.login(parsed);
-      res.status(200).json(result);
+      sendSuccess(res, result, 'User logged in successfully', 200);
     } catch (err) {
       next(err);
     }
@@ -29,26 +31,26 @@ export class AuthController {
     try {
       const parsed = refreshSchema.parse(req.body);
       const result = await service.refreshToken(parsed.refreshToken);
-      res.status(200).json(result);
+      sendSuccess(res, result, 'Token refreshed successfully', 200);
     } catch (err) {
       next(err);
     }
   }
 
   public async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
-    res.status(200).json({ message: 'Successfully logged out' });
+    sendSuccess(res, null, 'Successfully logged out', 200);
   }
 
   public async me(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
-        res.status(401).json({ error: 'Unauthorized' });
-        return;
+        throw new UnauthorizedError('Unauthorized');
       }
       const user = await service.getProfile(req.user.id);
-      res.status(200).json(user);
+      sendSuccess(res, user, 'Profile retrieved successfully', 200);
     } catch (err) {
       next(err);
     }
   }
 }
+

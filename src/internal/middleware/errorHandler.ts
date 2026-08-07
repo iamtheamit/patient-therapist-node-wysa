@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AppError } from '../shared/errors';
 import { ZodError } from 'zod';
 import { logger } from '../shared/logger';
+import { sendError } from '../shared/responses';
 
 export function errorHandler(err: any, req: Request, res: Response, next: NextFunction): void {
   const requestId = req.id;
@@ -13,9 +14,7 @@ export function errorHandler(err: any, req: Request, res: Response, next: NextFu
       path: req.originalUrl,
       method: req.method,
     });
-    res.status(err.statusCode).json({
-      error: err.message,
-    });
+    sendError(res, err.message, err.statusCode, null);
     return;
   }
 
@@ -26,10 +25,8 @@ export function errorHandler(err: any, req: Request, res: Response, next: NextFu
       method: req.method,
       issues: err.errors,
     });
-    res.status(400).json({
-      error: 'Validation Error',
-      details: err.errors.map((e) => ({ field: e.path.join('.'), message: e.message })),
-    });
+    const details = err.errors.map((e) => ({ field: e.path.join('.'), message: e.message }));
+    sendError(res, 'Validation Error', 400, details);
     return;
   }
 
@@ -41,8 +38,7 @@ export function errorHandler(err: any, req: Request, res: Response, next: NextFu
     method: req.method,
   });
 
-  const status = err.status || err.statusCode || 500;
-  res.status(status).json({
-    error: err.message || 'Internal Server Error',
-  });
+  const statusCode = err.status || err.statusCode || 500;
+  sendError(res, err.message || 'Internal Server Error', statusCode, null);
 }
+

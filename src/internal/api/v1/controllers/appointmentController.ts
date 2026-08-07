@@ -8,6 +8,7 @@ import {
   updateAppointmentStatusSchema,
 } from '../../../validators/appointmentValidator';
 import { AppointmentStatus } from '@prisma/client';
+import { sendSuccess } from '../../../shared/responses';
 
 const availabilityService = new AvailabilityService();
 const appointmentService = new AppointmentService();
@@ -27,7 +28,7 @@ export class AppointmentController {
         parsed.endDate
       );
 
-      res.status(200).json(slots);
+      sendSuccess(res, slots, 'Available slots retrieved successfully', 200);
     } catch (err) {
       next(err);
     }
@@ -38,7 +39,7 @@ export class AppointmentController {
       const patientId = req.user!.id;
       const parsed = holdSlotSchema.parse(req.body);
       const appointments = await appointmentService.holdSlot(patientId, parsed);
-      res.status(201).json(appointments);
+      sendSuccess(res, appointments, 'Slot held successfully', 201);
     } catch (err) {
       next(err);
     }
@@ -50,7 +51,7 @@ export class AppointmentController {
       const appointmentId = req.params.id;
       const parsed = simulatePaymentSchema.parse(req.body);
       const result = await appointmentService.simulatePayment(patientId, appointmentId, parsed);
-      res.status(200).json(result);
+      sendSuccess(res, result, 'Payment processed successfully', 200);
     } catch (err) {
       next(err);
     }
@@ -62,7 +63,7 @@ export class AppointmentController {
       const role = req.user!.role;
       const appointmentId = req.params.id;
       const cancelled = await appointmentService.cancelAppointment(userId, role, appointmentId);
-      res.status(200).json(cancelled);
+      sendSuccess(res, cancelled, 'Appointment cancelled successfully', 200);
     } catch (err) {
       next(err);
     }
@@ -74,7 +75,7 @@ export class AppointmentController {
       const role = req.user!.role;
       const seriesId = req.params.seriesId;
       const result = await appointmentService.cancelSeries(userId, role, seriesId);
-      res.status(200).json({ message: 'Recurring series cancelled successfully', count: result.count });
+      sendSuccess(res, { count: result.count }, 'Recurring series cancelled successfully', 200);
     } catch (err) {
       next(err);
     }
@@ -86,7 +87,7 @@ export class AppointmentController {
       const appointmentId = req.params.id;
       const parsed = updateAppointmentStatusSchema.parse(req.body);
       const updated = await appointmentService.updateAppointmentStatusByTherapist(therapistId, appointmentId, parsed);
-      res.status(200).json(updated);
+      sendSuccess(res, updated, 'Appointment status updated successfully', 200);
     } catch (err) {
       next(err);
     }
@@ -97,7 +98,7 @@ export class AppointmentController {
       const therapistId = req.user!.id;
       const status = req.query.status as AppointmentStatus | undefined;
       const list = await appointmentService.getTherapistAppointments(therapistId, status);
-      res.status(200).json(list);
+      sendSuccess(res, list, 'Therapist appointments retrieved successfully', 200);
     } catch (err) {
       next(err);
     }
@@ -108,9 +109,10 @@ export class AppointmentController {
       const patientId = req.user!.id;
       const status = req.query.status as AppointmentStatus | undefined;
       const list = await appointmentService.getPatientAppointments(patientId, status);
-      res.status(200).json(list);
+      sendSuccess(res, list, 'Patient appointments retrieved successfully', 200);
     } catch (err) {
       next(err);
     }
   }
 }
+

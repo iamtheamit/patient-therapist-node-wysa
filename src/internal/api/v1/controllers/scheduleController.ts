@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
 import { ScheduleService } from '../../../services/scheduleService';
 import { updateScheduleSchema } from '../../../validators/scheduleValidator';
+import { sendSuccess } from '../../../shared/responses';
+import { BadRequestError } from '../../../shared/errors';
 
 const service = new ScheduleService();
 
@@ -9,11 +11,10 @@ export class ScheduleController {
     try {
       const therapistId = req.params.therapistId || req.user?.id;
       if (!therapistId) {
-        res.status(400).json({ error: 'Therapist ID required' });
-        return;
+        throw new BadRequestError('Therapist ID required');
       }
       const schedule = await service.getTherapistSchedule(therapistId);
-      res.status(200).json(schedule);
+      sendSuccess(res, schedule, 'Therapist schedule retrieved successfully', 200);
     } catch (err) {
       next(err);
     }
@@ -24,9 +25,10 @@ export class ScheduleController {
       const therapistId = req.user!.id;
       const parsed = updateScheduleSchema.parse(req.body);
       const updated = await service.updateTherapistSchedule(therapistId, parsed.schedules);
-      res.status(200).json(updated);
+      sendSuccess(res, updated, 'Therapist schedule updated successfully', 200);
     } catch (err) {
       next(err);
     }
   }
 }
+

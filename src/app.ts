@@ -1,11 +1,13 @@
 import express from 'express';
-import { setupMiddleware } from './internal/bootstrap/middleware';
+import { setupPreRouteMiddleware, setupPostRouteMiddleware } from './internal/bootstrap/middleware';
 import { registerRoutes } from './internal/bootstrap/routes';
+import { setupSwagger } from './config/swagger';
 
-// TODO: Configure the Express application and bootstrap core middleware and routes.
 const app = express();
 
-setupMiddleware(app);
+setupPreRouteMiddleware(app);
+setupSwagger(app);
 registerRoutes(app);
+setupPostRouteMiddleware(app);
 
 export default app;

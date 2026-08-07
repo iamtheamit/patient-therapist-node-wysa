@@ -1,7 +1,10 @@
 import { Router } from 'express';
+import { authRouter } from './auth.routes';
+import { scheduleRouter } from './schedule.routes';
+import { appointmentRouter } from './appointment.routes';
 
-// TODO: Register v1 API routes and wire controllers to route handlers.
 export const v1Router = Router();
 
-// Example placeholder route registration
-// v1Router.post('/appointments', appointmentController.create.bind(appointmentController));
+v1Router.use('/auth', authRouter);
+v1Router.use('/therapist/schedules', scheduleRouter);
+v1Router.use('/appointments', appointmentRouter);

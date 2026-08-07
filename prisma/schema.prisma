@@ -1,10 +1,104 @@
 generator client {
-  provider = 'prisma-client-js'
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = 'postgresql'
-  url      = env('DATABASE_URL')
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-// TODO: Define Prisma models for appointments, patients, providers, and other healthcare domain entities.
+enum Role {
+  PATIENT
+  THERAPIST
+}
+
+enum AppointmentStatus {
+  HOLD
+  HOLD_EXPIRED
+  PAYMENT_FAILED
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  NOT_REQUIRED
+}
+
+enum BookingType {
+  ONE_TIME
+  RECURRING
+}
+
+enum RecurrenceFrequency {
+  NONE
+  DAILY
+  WEEKLY
+  BI_WEEKLY
+  MONTHLY
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(PATIENT)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  schedules             TherapistSchedule[] @relation("TherapistSchedules")
+  patientAppointments   Appointment[]       @relation("PatientAppointments")
+  therapistAppointments Appointment[]       @relation("TherapistAppointments")
+}
+
+model TherapistSchedule {
+  id           String   @id @default(uuid())
+  therapistId  String
+  dayOfWeek    Int      // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  startTime    String   // "09:00" (HH:mm format)
+  endTime      String   // "17:00" (HH:mm format)
+  slotDuration Int      // Duration in minutes, e.g., 30
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  therapist User @relation("TherapistSchedules", fields: [therapistId], references: [id], onDelete: Cascade)
+
+  @@index([therapistId, dayOfWeek])
+}
+
+model Appointment {
+  id                  String              @id @default(uuid())
+  patientId           String
+  therapistId         String
+  bookingType         BookingType         @default(ONE_TIME)
+  seriesId            String?             // Shared UUID for recurring appointments
+  recurrenceFrequency RecurrenceFrequency @default(NONE)
+  recurrenceEndDate   DateTime?
+  appointmentStatus   AppointmentStatus   @default(HOLD)
+  paymentStatus       PaymentStatus       @default(PENDING)
+  holdExpiresAt       DateTime?
+  startTime           DateTime
+  endTime             DateTime
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  patient   User @relation("PatientAppointments", fields: [patientId], references: [id], onDelete: Cascade)
+  therapist User @relation("TherapistAppointments", fields: [therapistId], references: [id], onDelete: Cascade)
+
+  @@index([therapistId, startTime, endTime])
+  @@index([patientId])
+  @@index([seriesId])
+}
+
+model IdempotencyKey {
+  key        String   @id
+  response   String   // JSON stringified response payload
+  statusCode Int
+  createdAt  DateTime @default(now())
+}

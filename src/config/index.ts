@@ -1,6 +1,8 @@
-// TODO: Load and expose application configuration values.
-// Use environment-aware defaults and validate startup config here.
+export * from './swagger';
 
 export const config = {
-  // TODO: add config values like database URLs, API metadata, and feature flags.
+  appName: 'healthcare-appointment-backend',
+  port: process.env.PORT || 4000,
+  jwtSecret: process.env.JWT_SECRET || 'changeme',
+  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || 'changeme-refresh',
 };

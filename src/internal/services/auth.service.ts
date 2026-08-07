@@ -3,11 +3,13 @@ import jwt from 'jsonwebtoken';
 import { UserRepository } from '../repositories/userRepository';
 import { RegisterSchema, LoginSchema } from '../validators/authValidator';
 import { ConflictError, UnauthorizedError, NotFoundError } from '../shared/errors';
+import { config } from '../../config';
 
 const userRepo = new UserRepository();
 
-const ACCESS_TOKEN_EXPIRES_IN = 15 * 60; // 15 minutes in seconds
-const REFRESH_TOKEN_EXPIRES_IN = 30 * 24 * 60 * 60; // 30 days in seconds
+const getAccessTokenExpiresIn = (): number => config.accessTokenExpiresIn;
+const getRefreshTokenExpiresIn = (): number => config.refreshTokenExpiresIn;
+
 
 export interface AuthTokens {
   accessToken: string;
@@ -58,7 +60,7 @@ export class AuthService {
 
   public async refreshToken(token: string): Promise<{ accessToken: string; expiresIn: number }> {
     try {
-      const refreshSecret = process.env.JWT_REFRESH_SECRET || 'changeme-refresh';
+      const refreshSecret = config.jwtRefreshSecret;
       const decoded = jwt.verify(token, refreshSecret) as { sub: string };
 
       const user = await userRepo.findById(decoded.sub);
@@ -66,16 +68,17 @@ export class AuthService {
         throw new UnauthorizedError('User no longer exists');
       }
 
-      const accessSecret = process.env.JWT_SECRET || 'changeme';
+      const accessSecret = config.jwtSecret;
+      const expiresIn = getAccessTokenExpiresIn();
       const accessToken = jwt.sign(
         { sub: user.id, email: user.email, role: user.role },
         accessSecret,
-        { expiresIn: ACCESS_TOKEN_EXPIRES_IN }
+        { expiresIn }
       );
 
       return {
         accessToken,
-        expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+        expiresIn,
       };
     } catch (err) {
       throw new UnauthorizedError('Invalid or expired refresh token');
@@ -98,26 +101,28 @@ export class AuthService {
   }
 
   private generateTokens(user: { id: string; email: string; name: string; role: string }): AuthTokens {
-    const jwtSecret = process.env.JWT_SECRET || 'changeme';
-    const refreshSecret = process.env.JWT_REFRESH_SECRET || 'changeme-refresh';
+    const jwtSecret = config.jwtSecret;
+    const refreshSecret = config.jwtRefreshSecret;
+    const accessTokenExpiresIn = getAccessTokenExpiresIn();
+    const refreshTokenExpiresIn = getRefreshTokenExpiresIn();
 
     const accessToken = jwt.sign(
       { sub: user.id, email: user.email, role: user.role },
       jwtSecret,
-      { expiresIn: ACCESS_TOKEN_EXPIRES_IN }
+      { expiresIn: accessTokenExpiresIn }
     );
 
     const refreshToken = jwt.sign(
       { sub: user.id },
       refreshSecret,
-      { expiresIn: REFRESH_TOKEN_EXPIRES_IN }
+      { expiresIn: refreshTokenExpiresIn }
     );
 
     return {
       accessToken,
       refreshToken,
       tokenType: 'Bearer',
-      expiresIn: ACCESS_TOKEN_EXPIRES_IN,
+      expiresIn: accessTokenExpiresIn,
       user: {
         id: user.id,
         email: user.email,

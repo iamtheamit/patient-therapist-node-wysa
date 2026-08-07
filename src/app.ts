@@ -1,5 +1,5 @@
 import express from 'express';
-import { setupPreRouteMiddleware, setupPostRouteMiddleware } from './internal/bootstrap/middleware';
+import { setupPreRouteMiddleware, setupPostRouteMiddleware } from './internal/bootstrap/middlewarePipeline';
 import { registerRoutes } from './internal/bootstrap/routes';
 import { setupSwagger } from './config/swagger';
 

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { UnauthorizedError, ForbiddenError } from '../shared/errors';
+import { MIDDLEWARE_MESSAGES } from '../shared/constants';
 
 export interface JwtPayload {
   sub: string;
@@ -23,7 +24,7 @@ declare global {
 export function authenticateToken(req: Request, res: Response, next: NextFunction): void {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return next(new UnauthorizedError('Missing or malformed Authorization header'));
+    return next(new UnauthorizedError(MIDDLEWARE_MESSAGES.MISSING_HEADER));
   }
 
   const token = authHeader.split(' ')[1];
@@ -39,18 +40,18 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
 
     next();
   } catch (err) {
-    return next(new UnauthorizedError('Invalid or expired token'));
+    return next(new UnauthorizedError(MIDDLEWARE_MESSAGES.INVALID_TOKEN));
   }
 }
 
 export function requireRole(...allowedRoles: string[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
-      return next(new UnauthorizedError('User authentication required'));
+      return next(new UnauthorizedError(MIDDLEWARE_MESSAGES.AUTH_REQUIRED));
     }
 
     if (!allowedRoles.includes(req.user.role)) {
-      return next(new ForbiddenError(`Access denied: required role ${allowedRoles.join(' or ')}`));
+      return next(new ForbiddenError(MIDDLEWARE_MESSAGES.ROLE_DENIED(allowedRoles.join(' or '))));
     }
 
     next();

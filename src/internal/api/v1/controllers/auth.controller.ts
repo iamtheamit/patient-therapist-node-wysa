@@ -3,6 +3,7 @@ import { AuthService } from '../../../services/auth.service';
 import { registerSchema, loginSchema, refreshSchema } from '../../../validators/authValidator';
 import { sendSuccess } from '../../../shared/responses';
 import { UnauthorizedError } from '../../../shared/errors';
+import { AUTH_MESSAGES } from '../../../shared/constants';
 
 const service = new AuthService();
 
@@ -11,7 +12,7 @@ export class AuthController {
     try {
       const parsed = registerSchema.parse(req.body);
       const result = await service.register(parsed);
-      sendSuccess(res, result, 'User registered successfully', 201);
+      sendSuccess(res, result, AUTH_MESSAGES.REGISTER_SUCCESS, 201);
     } catch (err) {
       next(err);
     }
@@ -21,7 +22,7 @@ export class AuthController {
     try {
       const parsed = loginSchema.parse(req.body);
       const result = await service.login(parsed);
-      sendSuccess(res, result, 'User logged in successfully', 200);
+      sendSuccess(res, result, AUTH_MESSAGES.LOGIN_SUCCESS, 200);
     } catch (err) {
       next(err);
     }
@@ -31,26 +32,27 @@ export class AuthController {
     try {
       const parsed = refreshSchema.parse(req.body);
       const result = await service.refreshToken(parsed.refreshToken);
-      sendSuccess(res, result, 'Token refreshed successfully', 200);
+      sendSuccess(res, result, AUTH_MESSAGES.REFRESH_SUCCESS, 200);
     } catch (err) {
       next(err);
     }
   }
 
   public async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
-    sendSuccess(res, null, 'Successfully logged out', 200);
+    sendSuccess(res, null, AUTH_MESSAGES.LOGOUT_SUCCESS, 200);
   }
 
   public async me(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (!req.user) {
-        throw new UnauthorizedError('Unauthorized');
+        throw new UnauthorizedError(AUTH_MESSAGES.UNAUTHORIZED);
       }
       const user = await service.getProfile(req.user.id);
-      sendSuccess(res, user, 'Profile retrieved successfully', 200);
+      sendSuccess(res, user, AUTH_MESSAGES.PROFILE_SUCCESS, 200);
     } catch (err) {
       next(err);
     }
   }
 }
+
 

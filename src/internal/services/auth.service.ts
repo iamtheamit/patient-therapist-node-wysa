@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { UserRepository } from '../repositories/userRepository';
 import { RegisterSchema, LoginSchema } from '../validators/authValidator';
 import { ConflictError, UnauthorizedError, NotFoundError } from '../shared/errors';
+import { AUTH_MESSAGES } from '../shared/constants';
 import { config } from '../../config';
 
 const userRepo = new UserRepository();
@@ -28,7 +29,7 @@ export class AuthService {
   public async register(payload: RegisterSchema): Promise<AuthTokens> {
     const existing = await userRepo.findByEmail(payload.email);
     if (existing) {
-      throw new ConflictError('User with this email already exists');
+      throw new ConflictError(AUTH_MESSAGES.EMAIL_EXISTS);
     }
 
     const saltRounds = 10;
@@ -47,12 +48,12 @@ export class AuthService {
   public async login({ email, password }: LoginSchema): Promise<AuthTokens> {
     const user = await userRepo.findByEmail(email);
     if (!user) {
-      throw new UnauthorizedError('Invalid email or password');
+      throw new UnauthorizedError(AUTH_MESSAGES.INVALID_CREDENTIALS);
     }
 
     const match = await bcrypt.compare(password, user.passwordHash);
     if (!match) {
-      throw new UnauthorizedError('Invalid email or password');
+      throw new UnauthorizedError(AUTH_MESSAGES.INVALID_CREDENTIALS);
     }
 
     return this.generateTokens(user);
@@ -65,7 +66,7 @@ export class AuthService {
 
       const user = await userRepo.findById(decoded.sub);
       if (!user) {
-        throw new UnauthorizedError('User no longer exists');
+        throw new UnauthorizedError(AUTH_MESSAGES.USER_NOT_EXISTS);
       }
 
       const accessSecret = config.jwtSecret;
@@ -81,14 +82,14 @@ export class AuthService {
         expiresIn,
       };
     } catch (err) {
-      throw new UnauthorizedError('Invalid or expired refresh token');
+      throw new UnauthorizedError(AUTH_MESSAGES.INVALID_REFRESH_TOKEN);
     }
   }
 
   public async getProfile(userId: string) {
     const user = await userRepo.findById(userId);
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError(AUTH_MESSAGES.USER_NOT_FOUND);
     }
 
     return {

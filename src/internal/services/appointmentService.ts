@@ -3,6 +3,7 @@ import { prisma } from '../infrastructure/database/prismaClient';
 import { AppointmentRepository } from '../repositories/appointmentRepository';
 import { HoldSlotDto, SimulatePaymentDto, UpdateAppointmentStatusDto } from '../validators/appointmentValidator';
 import { ConflictError, NotFoundError, ForbiddenError, BadRequestError } from '../shared/errors';
+import { APPOINTMENT_MESSAGES } from '../shared/constants';
 import { AppointmentStatus, PaymentStatus, BookingType, RecurrenceFrequency, Appointment } from '@prisma/client';
 
 const appointmentRepo = new AppointmentRepository();
@@ -13,12 +14,12 @@ export class AppointmentService {
     const mainEnd = new Date(dto.endTime);
 
     if (mainStart <= new Date()) {
-      throw new BadRequestError('Cannot hold appointment slot in the past');
+      throw new BadRequestError(APPOINTMENT_MESSAGES.SLOT_IN_PAST);
     }
 
     const slotDurationMs = mainEnd.getTime() - mainStart.getTime();
     if (slotDurationMs <= 0) {
-      throw new BadRequestError('Invalid slot duration: end time must be after start time');
+      throw new BadRequestError(APPOINTMENT_MESSAGES.INVALID_SLOT_DURATION);
     }
 
     // Determine candidate slots for booking
@@ -26,10 +27,10 @@ export class AppointmentService {
 
     if (dto.bookingType === BookingType.RECURRING) {
       if (!dto.recurrenceEndDate) {
-        throw new BadRequestError('recurrenceEndDate is required for recurring bookings');
+        throw new BadRequestError(APPOINTMENT_MESSAGES.RECURRENCE_END_REQUIRED);
       }
       if (dto.recurrenceFrequency === RecurrenceFrequency.NONE) {
-        throw new BadRequestError('Valid recurrenceFrequency is required for recurring bookings');
+        throw new BadRequestError(APPOINTMENT_MESSAGES.RECURRENCE_FREQ_REQUIRED);
       }
 
       const recEnd = new Date(dto.recurrenceEndDate);
@@ -73,7 +74,7 @@ export class AppointmentService {
         const hasConflict = await appointmentRepo.checkSlotConflict(tx, dto.therapistId, slot.startTime, slot.endTime);
         if (hasConflict) {
           throw new ConflictError(
-            `Slot starting at ${slot.startTime.toISOString()} is already booked or held`
+            APPOINTMENT_MESSAGES.SLOT_CONFLICT(slot.startTime.toISOString())
           );
         }
       }
@@ -102,21 +103,21 @@ export class AppointmentService {
   public async simulatePayment(patientId: string, appointmentId: string, dto: SimulatePaymentDto): Promise<Appointment> {
     const appt = await appointmentRepo.findById(appointmentId);
     if (!appt) {
-      throw new NotFoundError('Appointment not found');
+      throw new NotFoundError(APPOINTMENT_MESSAGES.NOT_FOUND);
     }
 
     if (appt.patientId !== patientId) {
-      throw new ForbiddenError('You do not have access to pay for this appointment');
+      throw new ForbiddenError(APPOINTMENT_MESSAGES.PAYMENT_ACCESS_DENIED);
     }
 
     if (appt.appointmentStatus !== AppointmentStatus.HOLD) {
-      throw new BadRequestError(`Cannot process payment for appointment in '${appt.appointmentStatus}' state`);
+      throw new BadRequestError(APPOINTMENT_MESSAGES.INVALID_STATE_FOR_PAYMENT(appt.appointmentStatus));
     }
 
     // Check hold expiration
     if (appt.holdExpiresAt && appt.holdExpiresAt <= new Date()) {
       await appointmentRepo.updateStatus(appointmentId, AppointmentStatus.HOLD_EXPIRED, PaymentStatus.FAILED);
-      throw new ConflictError('Hold expired before payment was completed');
+      throw new ConflictError(APPOINTMENT_MESSAGES.HOLD_EXPIRED);
     }
 
     if (dto.status === 'SUCCESS') {
@@ -129,14 +130,14 @@ export class AppointmentService {
   public async cancelAppointment(userId: string, role: string, appointmentId: string): Promise<Appointment> {
     const appt = await appointmentRepo.findById(appointmentId);
     if (!appt) {
-      throw new NotFoundError('Appointment not found');
+      throw new NotFoundError(APPOINTMENT_MESSAGES.NOT_FOUND);
     }
 
     if (role === 'PATIENT' && appt.patientId !== userId) {
-      throw new ForbiddenError('Cannot cancel another patient appointment');
+      throw new ForbiddenError(APPOINTMENT_MESSAGES.CANCEL_PATIENT_DENIED);
     }
     if (role === 'THERAPIST' && appt.therapistId !== userId) {
-      throw new ForbiddenError('Cannot cancel appointment of another therapist');
+      throw new ForbiddenError(APPOINTMENT_MESSAGES.CANCEL_THERAPIST_DENIED);
     }
 
     return appointmentRepo.updateStatus(appointmentId, AppointmentStatus.CANCELLED);
@@ -153,11 +154,11 @@ export class AppointmentService {
   ): Promise<Appointment> {
     const appt = await appointmentRepo.findById(appointmentId);
     if (!appt) {
-      throw new NotFoundError('Appointment not found');
+      throw new NotFoundError(APPOINTMENT_MESSAGES.NOT_FOUND);
     }
 
     if (appt.therapistId !== therapistId) {
-      throw new ForbiddenError('Only the assigned therapist can update appointment status');
+      throw new ForbiddenError(APPOINTMENT_MESSAGES.THERAPIST_UPDATE_DENIED);
     }
 
     return appointmentRepo.updateStatus(appointmentId, dto.status as AppointmentStatus);

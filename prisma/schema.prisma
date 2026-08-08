@@ -42,6 +42,13 @@ enum RecurrenceFrequency {
   MONTHLY
 }
 
+enum AppointmentCategory {
+  FOLLOW_UP
+  CONSULTATION_CBT
+  INITIAL_INTAKE
+  GENERAL_COUNSELING
+}
+
 model User {
   id           String   @id @default(uuid())
   name         String
@@ -51,9 +58,10 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  schedules             TherapistSchedule[] @relation("TherapistSchedules")
-  patientAppointments   Appointment[]       @relation("PatientAppointments")
-  therapistAppointments Appointment[]       @relation("TherapistAppointments")
+  schedules             TherapistSchedule[]         @relation("TherapistSchedules")
+  availabilitySlots     TherapistAvailabilitySlot[] @relation("TherapistAvailabilitySlots")
+  patientAppointments   Appointment[]               @relation("PatientAppointments")
+  therapistAppointments Appointment[]               @relation("TherapistAppointments")
 }
 
 model TherapistSchedule {
@@ -70,6 +78,24 @@ model TherapistSchedule {
   therapist User @relation("TherapistSchedules", fields: [therapistId], references: [id], onDelete: Cascade)
 
   @@index([therapistId, dayOfWeek])
+}
+
+model TherapistAvailabilitySlot {
+  id              String   @id @default(uuid())
+  therapistId     String
+  date            String   // "YYYY-MM-DD"
+  startTime       String   // "09:00"
+  endTime         String   // "10:00"
+  appointmentType String?
+  isRecurring     Boolean  @default(false)
+  repeatType      String?
+  repeatFrequency String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  therapist User @relation("TherapistAvailabilitySlots", fields: [therapistId], references: [id], onDelete: Cascade)
+
+  @@index([therapistId, date])
 }
 
 model Appointment {

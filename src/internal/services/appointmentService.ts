@@ -5,6 +5,8 @@ import { HoldSlotDto, SimulatePaymentDto, UpdateAppointmentStatusDto } from '../
 import { ConflictError, NotFoundError, ForbiddenError, BadRequestError } from '../shared/errors';
 import { APPOINTMENT_MESSAGES } from '../shared/constants';
 import { AppointmentStatus, PaymentStatus, BookingType, RecurrenceFrequency, Appointment } from '@prisma/client';
+import { config } from '../../config';
+import { PaginationParams } from '../shared/helpers/pagination';
 
 const appointmentRepo = new AppointmentRepository();
 
@@ -64,7 +66,7 @@ export class AppointmentService {
     }
 
     const seriesId = dto.bookingType === BookingType.RECURRING ? randomUUID() : null;
-    const holdExpiresAt = new Date(Date.now() + 60 * 1000); // 1 minute hold
+    const holdExpiresAt = new Date(Date.now() + config.holdDurationSeconds * 1000);
 
     // Execute hold generation in database transaction for concurrency safety across cluster nodes
     return prisma.$transaction(async (tx) => {
@@ -147,6 +149,23 @@ export class AppointmentService {
     return appointmentRepo.updateSeriesStatus(seriesId, AppointmentStatus.CANCELLED);
   }
 
+  public async releaseHold(patientId: string, holdId: string): Promise<Appointment> {
+    const appt = await appointmentRepo.findById(holdId);
+    if (!appt) {
+      throw new NotFoundError(APPOINTMENT_MESSAGES.NOT_FOUND);
+    }
+
+    if (appt.patientId !== patientId) {
+      throw new ForbiddenError(APPOINTMENT_MESSAGES.PAYMENT_ACCESS_DENIED);
+    }
+
+    if (appt.appointmentStatus !== AppointmentStatus.HOLD) {
+      throw new BadRequestError('Appointment is not in HOLD state');
+    }
+
+    return appointmentRepo.updateStatus(holdId, AppointmentStatus.HOLD_EXPIRED);
+  }
+
   public async updateAppointmentStatusByTherapist(
     therapistId: string,
     appointmentId: string,
@@ -164,11 +183,11 @@ export class AppointmentService {
     return appointmentRepo.updateStatus(appointmentId, dto.status as AppointmentStatus);
   }
 
-  public async getTherapistAppointments(therapistId: string, status?: AppointmentStatus) {
-    return appointmentRepo.findByTherapist(therapistId, status);
+  public async getTherapistAppointments(therapistId: string, status?: AppointmentStatus, paginationParams?: PaginationParams) {
+    return appointmentRepo.findByTherapist(therapistId, status, paginationParams);
   }
 
-  public async getPatientAppointments(patientId: string, status?: AppointmentStatus) {
-    return appointmentRepo.findByPatient(patientId, status);
+  public async getPatientAppointments(patientId: string, status?: AppointmentStatus, paginationParams?: PaginationParams) {
+    return appointmentRepo.findByPatient(patientId, status, paginationParams);
   }
 }

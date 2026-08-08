@@ -1,6 +1,7 @@
 import { ScheduleRepository } from '../repositories/scheduleRepository';
 import { AppointmentRepository } from '../repositories/appointmentRepository';
 import { AvailabilitySlotRepository } from '../repositories/availabilitySlotRepository';
+import { PaginationParams, formatPaginatedResult } from '../shared/helpers/pagination';
 
 const scheduleRepo = new ScheduleRepository();
 const appointmentRepo = new AppointmentRepository();
@@ -16,14 +17,24 @@ export class AvailabilityService {
   public async getAvailableSlots(
     therapistId: string,
     startDateStr: string,
-    endDateStr: string
-  ): Promise<AvailableSlot[]> {
-    const startRange = new Date(startDateStr);
-    const endRange = new Date(endDateStr);
+    endDateStr: string,
+    paginationParams?: PaginationParams
+  ): Promise<any> {
+    let startRange: Date;
+    let endRange: Date;
 
-    // Set endRange to end of day if only date is passed
+    if (startDateStr.length <= 10) {
+      const [y, m, d] = startDateStr.split('-').map(Number);
+      startRange = new Date(y, m - 1, d, 0, 0, 0, 0);
+    } else {
+      startRange = new Date(startDateStr);
+    }
+
     if (endDateStr.length <= 10) {
-      endRange.setHours(23, 59, 59, 999);
+      const [y, m, d] = endDateStr.split('-').map(Number);
+      endRange = new Date(y, m - 1, d, 23, 59, 59, 999);
+    } else {
+      endRange = new Date(endDateStr);
     }
 
     const now = new Date();
@@ -122,6 +133,14 @@ export class AvailabilityService {
     // Sort chronologically
     availableSlots.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
 
-    return availableSlots;
+    const total = availableSlots.length;
+    const { page, limit, skip } = paginationParams || {};
+
+    let resultSlots = availableSlots;
+    if (skip !== undefined && limit !== undefined) {
+      resultSlots = availableSlots.slice(skip, skip + limit);
+    }
+
+    return formatPaginatedResult(resultSlots, total, page, limit);
   }
 }

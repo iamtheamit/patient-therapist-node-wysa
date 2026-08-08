@@ -19,6 +19,13 @@ appointmentRouter.post(
 );
 
 appointmentRouter.post(
+  '/holds/:holdId/release',
+  authenticateToken,
+  requireRole('PATIENT'),
+  controller.releaseHold.bind(controller)
+);
+
+appointmentRouter.post(
   '/:id/pay',
   authenticateToken,
   requireRole('PATIENT'),

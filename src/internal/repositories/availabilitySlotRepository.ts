@@ -1,4 +1,5 @@
 import { prisma } from '../infrastructure/database/prismaClient';
+import { PaginationParams, formatPaginatedResult } from '../shared/helpers/pagination';
 
 export interface TherapistAvailabilitySlot {
   id: string;
@@ -45,15 +46,29 @@ export class AvailabilitySlotRepository {
     });
   }
 
-  public async findByTherapistId(therapistId: string, date?: string): Promise<TherapistAvailabilitySlot[]> {
+  public async findByTherapistId(
+    therapistId: string,
+    date?: string,
+    paginationParams?: PaginationParams
+  ): Promise<any> {
     const where: any = { therapistId };
     if (date) {
       where.date = date;
     }
-    return this.model.findMany({
-      where,
-      orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
-    });
+
+    const { page, limit, skip, take } = paginationParams || {};
+
+    const [slots, total] = await Promise.all([
+      this.model.findMany({
+        where,
+        orderBy: [{ date: 'asc' }, { startTime: 'asc' }],
+        ...(skip !== undefined ? { skip } : {}),
+        ...(take !== undefined ? { take } : {}),
+      }),
+      this.model.count({ where }),
+    ]);
+
+    return formatPaginatedResult(slots, total, page, limit);
   }
 
   public async findById(id: string): Promise<TherapistAvailabilitySlot | null> {

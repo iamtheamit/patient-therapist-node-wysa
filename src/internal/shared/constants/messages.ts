@@ -48,9 +48,14 @@ export const MIDDLEWARE_MESSAGES = {
   ROLE_DENIED: (roles: string) => `You do not have permission to perform this action. Required role: ${roles}.`,
 } as const;
 
+export const THERAPIST_MESSAGES = {
+  FETCH_ALL_SUCCESS: 'Therapists loaded successfully.',
+} as const;
+
 export const MESSAGES = {
   AUTH: AUTH_MESSAGES,
   APPOINTMENT: APPOINTMENT_MESSAGES,
   SCHEDULE: SCHEDULE_MESSAGES,
   MIDDLEWARE: MIDDLEWARE_MESSAGES,
+  THERAPIST: THERAPIST_MESSAGES,
 } as const;

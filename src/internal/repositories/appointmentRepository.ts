@@ -1,5 +1,6 @@
 import { prisma } from '../infrastructure/database/prismaClient';
 import { Appointment, AppointmentStatus, PaymentStatus, BookingType, RecurrenceFrequency, Prisma } from '@prisma/client';
+import { PaginationParams, formatPaginatedResult } from '../shared/helpers/pagination';
 
 export interface CreateHoldParams {
   patientId: string;
@@ -133,33 +134,53 @@ export class AppointmentRepository {
 
   public async findByTherapist(
     therapistId: string,
-    status?: AppointmentStatus
-  ): Promise<Appointment[]> {
+    status?: AppointmentStatus,
+    paginationParams?: PaginationParams
+  ): Promise<any> {
     const where: Prisma.AppointmentWhereInput = { therapistId };
     if (status) where.appointmentStatus = status;
 
-    return prisma.appointment.findMany({
-      where,
-      include: {
-        patient: { select: { id: true, name: true, email: true } },
-      },
-      orderBy: { startTime: 'asc' },
-    });
+    const { page, limit, skip, take } = paginationParams || {};
+
+    const [appointments, total] = await Promise.all([
+      prisma.appointment.findMany({
+        where,
+        include: {
+          patient: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { startTime: 'asc' },
+        ...(skip !== undefined ? { skip } : {}),
+        ...(take !== undefined ? { take } : {}),
+      }),
+      prisma.appointment.count({ where }),
+    ]);
+
+    return formatPaginatedResult(appointments, total, page, limit);
   }
 
   public async findByPatient(
     patientId: string,
-    status?: AppointmentStatus
-  ): Promise<Appointment[]> {
+    status?: AppointmentStatus,
+    paginationParams?: PaginationParams
+  ): Promise<any> {
     const where: Prisma.AppointmentWhereInput = { patientId };
     if (status) where.appointmentStatus = status;
 
-    return prisma.appointment.findMany({
-      where,
-      include: {
-        therapist: { select: { id: true, name: true, email: true } },
-      },
-      orderBy: { startTime: 'asc' },
-    });
+    const { page, limit, skip, take } = paginationParams || {};
+
+    const [appointments, total] = await Promise.all([
+      prisma.appointment.findMany({
+        where,
+        include: {
+          therapist: { select: { id: true, name: true, email: true } },
+        },
+        orderBy: { startTime: 'asc' },
+        ...(skip !== undefined ? { skip } : {}),
+        ...(take !== undefined ? { take } : {}),
+      }),
+      prisma.appointment.count({ where }),
+    ]);
+
+    return formatPaginatedResult(appointments, total, page, limit);
   }
 }

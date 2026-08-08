@@ -2,13 +2,13 @@ import { z } from 'zod';
 import { BookingType, RecurrenceFrequency, AppointmentStatus } from '@prisma/client';
 
 export const getAvailabilityQuerySchema = z.object({
-  therapistId: z.string().uuid('Invalid therapist ID format'),
+  therapistId: z.string().min(1, 'Therapist ID is required'),
   startDate: z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
   endDate: z.string().datetime({ offset: true }).or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),
 });
 
 export const holdSlotSchema = z.object({
-  therapistId: z.string().uuid('Invalid therapist ID format'),
+  therapistId: z.string().min(1, 'Therapist ID is required'),
   startTime: z.string().datetime({ offset: true }),
   endTime: z.string().datetime({ offset: true }),
   bookingType: z.nativeEnum(BookingType).optional().default(BookingType.ONE_TIME),

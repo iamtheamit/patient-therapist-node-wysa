@@ -3,6 +3,7 @@ import { AvailabilitySlotService } from '../../../services/availabilitySlotServi
 import { createAvailabilitySlotSchema } from '../../../validators/availabilitySlotValidator';
 import { sendSuccess } from '../../../shared/responses';
 import { BadRequestError } from '../../../shared/errors';
+import { parsePaginationParams } from '../../../shared/helpers/pagination';
 
 const service = new AvailabilitySlotService();
 
@@ -25,7 +26,8 @@ export class AvailabilitySlotController {
         throw new BadRequestError('Therapist ID is required.');
       }
       const date = req.query.date as string | undefined;
-      const slots = await service.getSlots(therapistId, date);
+      const paginationParams = parsePaginationParams(req.query);
+      const slots = await service.getSlots(therapistId, date, paginationParams);
       sendSuccess(res, slots, 'Availability slots retrieved successfully', 200);
     } catch (err) {
       next(err);

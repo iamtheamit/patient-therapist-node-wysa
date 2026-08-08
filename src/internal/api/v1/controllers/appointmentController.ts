@@ -10,6 +10,7 @@ import {
 import { AppointmentStatus } from '@prisma/client';
 import { sendSuccess } from '../../../shared/responses';
 import { APPOINTMENT_MESSAGES } from '../../../shared/constants';
+import { parsePaginationParams } from '../../../shared/helpers/pagination';
 
 const availabilityService = new AvailabilityService();
 const appointmentService = new AppointmentService();
@@ -22,11 +23,13 @@ export class AppointmentController {
         startDate: req.query.startDate,
         endDate: req.query.endDate,
       });
+      const paginationParams = parsePaginationParams(req.query);
 
       const slots = await availabilityService.getAvailableSlots(
         parsed.therapistId,
         parsed.startDate,
-        parsed.endDate
+        parsed.endDate,
+        paginationParams
       );
 
       sendSuccess(res, slots, APPOINTMENT_MESSAGES.AVAILABILITY_SUCCESS, 200);
@@ -41,6 +44,17 @@ export class AppointmentController {
       const parsed = holdSlotSchema.parse(req.body);
       const appointments = await appointmentService.holdSlot(patientId, parsed);
       sendSuccess(res, appointments, APPOINTMENT_MESSAGES.HOLD_SUCCESS, 201);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public async releaseHold(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const patientId = req.user!.id;
+      const holdId = req.params.holdId;
+      const result = await appointmentService.releaseHold(patientId, holdId);
+      sendSuccess(res, result, 'Slot hold released successfully', 200);
     } catch (err) {
       next(err);
     }
@@ -96,9 +110,10 @@ export class AppointmentController {
 
   public async getTherapistAppointments(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const therapistId = req.user!.id;
+      const therapistId = req.params.therapistId || req.user!.id;
       const status = req.query.status as AppointmentStatus | undefined;
-      const list = await appointmentService.getTherapistAppointments(therapistId, status);
+      const paginationParams = parsePaginationParams(req.query);
+      const list = await appointmentService.getTherapistAppointments(therapistId, status, paginationParams);
       sendSuccess(res, list, APPOINTMENT_MESSAGES.THERAPIST_FETCH_SUCCESS, 200);
     } catch (err) {
       next(err);
@@ -109,7 +124,8 @@ export class AppointmentController {
     try {
       const patientId = req.user!.id;
       const status = req.query.status as AppointmentStatus | undefined;
-      const list = await appointmentService.getPatientAppointments(patientId, status);
+      const paginationParams = parsePaginationParams(req.query);
+      const list = await appointmentService.getPatientAppointments(patientId, status, paginationParams);
       sendSuccess(res, list, APPOINTMENT_MESSAGES.PATIENT_FETCH_SUCCESS, 200);
     } catch (err) {
       next(err);

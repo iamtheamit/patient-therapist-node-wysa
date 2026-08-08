@@ -1,5 +1,6 @@
 import { AvailabilitySlotRepository, CreateAvailabilitySlotParams } from '../repositories/availabilitySlotRepository';
 import { BadRequestError, NotFoundError, ForbiddenError } from '../shared/errors';
+import { PaginationParams } from '../shared/helpers/pagination';
 
 const repo = new AvailabilitySlotRepository();
 
@@ -21,8 +22,8 @@ export class AvailabilitySlotService {
     });
   }
 
-  public async getSlots(therapistId: string, date?: string) {
-    return repo.findByTherapistId(therapistId, date);
+  public async getSlots(therapistId: string, date?: string, paginationParams?: PaginationParams) {
+    return repo.findByTherapistId(therapistId, date, paginationParams);
   }
 
   public async deleteSlot(slotId: string, therapistId: string) {

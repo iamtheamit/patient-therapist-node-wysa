@@ -7,4 +7,5 @@ export const v1Router = Router();
 
 v1Router.use('/auth', authRouter);
 v1Router.use('/therapist/schedules', scheduleRouter);
+v1Router.use('/therapists', scheduleRouter);
 v1Router.use('/appointments', appointmentRouter);

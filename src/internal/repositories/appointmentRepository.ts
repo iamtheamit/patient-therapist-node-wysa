@@ -23,6 +23,11 @@ export interface AppointmentFilterParams {
   status?: string;
 }
 
+export interface UpdateSeriesStatusFilters {
+  patientId?: string;
+  therapistId?: string;
+}
+
 export class AppointmentRepository {
   public async acquireSlotLock(
     tx: Prisma.TransactionClient,
@@ -161,11 +166,43 @@ export class AppointmentRepository {
 
   public async updateSeriesStatus(
     seriesId: string,
-    appointmentStatus: AppointmentStatus
+    appointmentStatus: AppointmentStatus,
+    filters?: UpdateSeriesStatusFilters
   ): Promise<Prisma.BatchPayload> {
+    const where: Prisma.AppointmentWhereInput = { seriesId };
+
+    if (filters?.patientId) {
+      where.patientId = filters.patientId;
+    }
+    if (filters?.therapistId) {
+      where.therapistId = filters.therapistId;
+    }
+
     return prisma.appointment.updateMany({
-      where: { seriesId },
+      where,
       data: { appointmentStatus },
+    });
+  }
+
+  public async findSeriesAppointment(
+    seriesId: string,
+    filters?: UpdateSeriesStatusFilters
+  ): Promise<Appointment | null> {
+    const where: Prisma.AppointmentWhereInput = { seriesId };
+
+    if (filters?.patientId) {
+      where.patientId = filters.patientId;
+    }
+    if (filters?.therapistId) {
+      where.therapistId = filters.therapistId;
+    }
+
+    return prisma.appointment.findFirst({ where });
+  }
+
+  public async findSeriesBySeriesId(seriesId: string): Promise<Appointment | null> {
+    return prisma.appointment.findFirst({
+      where: { seriesId },
     });
   }
 

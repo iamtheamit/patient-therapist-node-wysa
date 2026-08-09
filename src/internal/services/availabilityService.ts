@@ -38,7 +38,7 @@ export class AvailabilityService {
     }
 
     const now = new Date();
-    const schedules = await scheduleRepo.findByTherapistId(therapistId);
+    const schedules = await scheduleRepo.findByTherapistIdForDateRange(therapistId, startRange, endRange);
     const customSlots = await customSlotRepo.findByTherapistId(therapistId);
     const activeAppointments = await appointmentRepo.findActiveAppointmentsInRange(
       therapistId,
@@ -55,7 +55,33 @@ export class AvailabilityService {
 
     while (currDate <= endRange) {
       const dayOfWeek = currDate.getDay();
-      const daySchedules = schedules.filter((s) => s.dayOfWeek === dayOfWeek);
+      
+      // Filter schedules effective on currDate
+      const activeForDay = schedules.filter((s: any) => {
+        if (s.dayOfWeek !== dayOfWeek) return false;
+        const effFrom = new Date(s.effectiveFrom || s.createdAt || new Date(0));
+        effFrom.setHours(0, 0, 0, 0);
+        if (effFrom > currDate) return false;
+        if (s.effectiveUntil) {
+          const effUntil = new Date(s.effectiveUntil);
+          effUntil.setHours(23, 59, 59, 999);
+          if (effUntil < currDate) return false;
+        }
+        return true;
+      });
+
+      // Deduplicate: if multiple rules exist for the day, pick the latest effective version
+      const latestScheduleMap = new Map<number, any>();
+      for (const sched of (activeForDay as any[])) {
+        const existing = latestScheduleMap.get(sched.dayOfWeek);
+        const schedEffFrom = new Date(sched.effectiveFrom || sched.createdAt || new Date(0));
+        const existingEffFrom = existing ? new Date(existing.effectiveFrom || existing.createdAt || new Date(0)) : new Date(0);
+        if (!existing || schedEffFrom > existingEffFrom) {
+          latestScheduleMap.set(sched.dayOfWeek, sched);
+        }
+      }
+
+      const daySchedules = Array.from(latestScheduleMap.values()).filter((s) => s.isActive);
 
       for (const schedule of daySchedules) {
         const [startH, startM] = schedule.startTime.split(':').map(Number);

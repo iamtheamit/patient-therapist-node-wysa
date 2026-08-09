@@ -53,7 +53,7 @@ appointmentRouter.get(
 appointmentRouter.get(
   '/therapist',
   authenticateToken,
-  requireRole('THERAPIST', 'ADMIN'),
+  requireRole('THERAPIST'),
   controller.getTherapistAppointments.bind(controller)
 );
 

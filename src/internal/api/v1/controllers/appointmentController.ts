@@ -132,10 +132,23 @@ export class AppointmentController {
 
   public async getTherapistAppointments(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const therapistId = req.params.therapistId || req.user!.id;
-      if (req.user?.role === 'THERAPIST' && req.user.id !== therapistId) {
-        throw new ForbiddenError('You do not have permission to access this therapist agenda.');
+      const therapistIdFromParams = req.params.therapistId;
+      const therapistIdFromQuery = req.query.therapistId as string | undefined;
+      const therapistIdFromBody = (req.body as any)?.therapistId as string | undefined;
+      const therapistId = therapistIdFromParams || req.user!.id;
+
+      if (req.user?.role === 'THERAPIST') {
+        if (therapistIdFromParams && req.user.id !== therapistIdFromParams) {
+          throw new ForbiddenError('You do not have permission to access this therapist agenda.');
+        }
+        if (therapistIdFromQuery && req.user.id !== therapistIdFromQuery) {
+          throw new ForbiddenError('You do not have permission to access this therapist agenda.');
+        }
+        if (therapistIdFromBody && req.user.id !== therapistIdFromBody) {
+          throw new ForbiddenError('You do not have permission to access this therapist agenda.');
+        }
       }
+
       const filters = {
         search: req.query.search as string | undefined,
         startDate: req.query.startDate as string | undefined,

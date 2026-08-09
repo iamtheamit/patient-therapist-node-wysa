@@ -3,21 +3,66 @@ import { TherapistSchedule } from '@prisma/client';
 import { ScheduleItemDto } from '../validators/scheduleValidator';
 
 export class ScheduleRepository {
-  public async findByTherapistId(therapistId: string): Promise<TherapistSchedule[]> {
+  public async findByTherapistId(therapistId: string, effectiveDate: Date = new Date()): Promise<TherapistSchedule[]> {
+    const allSchedules = await prisma.therapistSchedule.findMany({
+      where: {
+        therapistId,
+        effectiveFrom: { lte: effectiveDate },
+        OR: [
+          { effectiveUntil: null },
+          { effectiveUntil: { gt: effectiveDate } },
+        ],
+      },
+      orderBy: { effectiveFrom: 'desc' },
+    });
+
+    // Deduplicate by dayOfWeek so the most recent effective schedule per day is returned
+    const map = new Map<number, TherapistSchedule>();
+    for (const schedule of allSchedules) {
+      if (!map.has(schedule.dayOfWeek) && schedule.isActive) {
+        map.set(schedule.dayOfWeek, schedule);
+      }
+    }
+
+    return Array.from(map.values()).sort((a, b) => a.dayOfWeek - b.dayOfWeek);
+  }
+
+  public async findByTherapistIdForDateRange(
+    therapistId: string,
+    startDate: Date,
+    endDate: Date
+  ): Promise<TherapistSchedule[]> {
     return prisma.therapistSchedule.findMany({
-      where: { therapistId, isActive: true },
-      orderBy: { dayOfWeek: 'asc' },
+      where: {
+        therapistId,
+        effectiveFrom: { lte: endDate },
+        OR: [
+          { effectiveUntil: null },
+          { effectiveUntil: { gte: startDate } },
+        ],
+      },
+      orderBy: { effectiveFrom: 'asc' },
     });
   }
 
-  public async updateSchedules(therapistId: string, items: ScheduleItemDto[]): Promise<TherapistSchedule[]> {
+  public async updateSchedules(
+    therapistId: string,
+    items: ScheduleItemDto[],
+    effectiveFrom: Date = new Date()
+  ): Promise<TherapistSchedule[]> {
     return prisma.$transaction(async (tx) => {
-      // Deactivate or delete old schedule rules for this therapist
-      await tx.therapistSchedule.deleteMany({
-        where: { therapistId },
+      // Close out previous schedule window by setting effectiveUntil = effectiveFrom
+      await tx.therapistSchedule.updateMany({
+        where: {
+          therapistId,
+          effectiveUntil: null,
+        },
+        data: {
+          effectiveUntil: effectiveFrom,
+        },
       });
 
-      // Insert new schedule rules
+      // Insert new versioned schedule rules starting at effectiveFrom
       await tx.therapistSchedule.createMany({
         data: items.map((item) => ({
           therapistId,
@@ -29,11 +74,18 @@ export class ScheduleRepository {
           breakStartTime: item.breakStartTime ?? null,
           breakEndTime: item.breakEndTime ?? null,
           isActive: item.isActive ?? true,
+          effectiveFrom,
+          effectiveUntil: null,
         })),
       });
 
+      // Return newly created active schedule rules
       return tx.therapistSchedule.findMany({
-        where: { therapistId, isActive: true },
+        where: {
+          therapistId,
+          isActive: true,
+          effectiveUntil: null,
+        },
         orderBy: { dayOfWeek: 'asc' },
       });
     });

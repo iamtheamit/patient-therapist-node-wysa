@@ -255,7 +255,27 @@ export class AppointmentService {
   }
 
   public async cancelSeries(userId: string, role: string, seriesId: string) {
-    return appointmentRepo.updateSeriesStatus(seriesId, AppointmentStatus.CANCELLED);
+    const filters: { patientId?: string; therapistId?: string } = {};
+
+    if (role === 'PATIENT') {
+      filters.patientId = userId;
+    } else if (role === 'THERAPIST') {
+      filters.therapistId = userId;
+    } else {
+      throw new ForbiddenError(APPOINTMENT_MESSAGES.CANCEL_PATIENT_DENIED);
+    }
+
+    const seriesAppointment = await appointmentRepo.findSeriesBySeriesId(seriesId);
+    if (!seriesAppointment) {
+      throw new NotFoundError(APPOINTMENT_MESSAGES.NOT_FOUND);
+    }
+
+    const ownedAppointment = await appointmentRepo.findSeriesAppointment(seriesId, filters);
+    if (!ownedAppointment) {
+      throw new NotFoundError(APPOINTMENT_MESSAGES.NOT_FOUND);
+    }
+
+    return appointmentRepo.updateSeriesStatus(seriesId, AppointmentStatus.CANCELLED, filters);
   }
 
   public async releaseHold(patientId: string, holdId: string): Promise<Appointment> {

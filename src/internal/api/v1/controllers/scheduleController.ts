@@ -73,7 +73,8 @@ export class ScheduleController {
       }
 
       const parsed = updateScheduleSchema.parse({ schedules: schedulesPayload || [] });
-      const updated = await service.updateTherapistSchedule(therapistId, parsed.schedules);
+      const effectiveFrom = req.body.effectiveFrom ? new Date(req.body.effectiveFrom) : new Date();
+      const updated = await service.updateTherapistSchedule(therapistId, parsed.schedules, effectiveFrom);
       sendSuccess(res, updated, SCHEDULE_MESSAGES.UPDATE_SUCCESS, 200);
     } catch (err) {
       next(err);

@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+dotenv.config();
 import http from 'http';
 import jwt from 'jsonwebtoken';
 import app from '../app';
@@ -26,8 +28,10 @@ async function createUser(role: string, email: string, name: string): Promise<Te
 }
 
 function signToken(user: TestUser): string {
-  return jwt.sign({ sub: user.id, email: user.email, role: user.role }, config.jwtSecret, {
+  return jwt.sign({ sub: user.id, email: user.email, role: user.role, tokenType: 'access' }, config.jwtSecret, {
     expiresIn: '1h',
+    issuer: config.jwtIssuer,
+    audience: config.jwtAudience,
   });
 }
 
@@ -86,6 +90,7 @@ function request(
 async function runTests() {
   const server = app.listen(port);
   const testUsers: TestUser[] = [];
+  const appointmentIds: string[] = [];
 
   try {
     const therapistAEmail = `schedule-test-therapist-a-${Date.now()}@example.com`;
@@ -188,9 +193,123 @@ async function runTests() {
     }
     console.log('PASS: Unauthenticated request is rejected with 401');
 
+    // Therapist agenda authorization security tests
+    const appointmentA = await prisma.appointment.create({
+      data: {
+        patientId: patient.id,
+        therapistId: therapistA.id,
+        bookingType: 'ONE_TIME',
+        appointmentStatus: 'SCHEDULED',
+        paymentStatus: 'SUCCESS',
+        startTime: new Date(Date.now() + 1000 * 60 * 60),
+        endTime: new Date(Date.now() + 1000 * 60 * 60 * 2),
+      },
+    });
+    const appointmentB = await prisma.appointment.create({
+      data: {
+        patientId: patient.id,
+        therapistId: therapistB.id,
+        bookingType: 'ONE_TIME',
+        appointmentStatus: 'SCHEDULED',
+        paymentStatus: 'SUCCESS',
+        startTime: new Date(Date.now() + 1000 * 60 * 60 * 3),
+        endTime: new Date(Date.now() + 1000 * 60 * 60 * 4),
+      },
+    });
+    appointmentIds.push(appointmentA.id, appointmentB.id);
+
+    console.log('TEST 7: Therapist A accesses own agenda');
+    const ownAgenda = await request(
+      'GET',
+      `/api/v1/therapist/schedules/${therapistA.id}/agenda`,
+      therapistAToken
+    );
+    if (ownAgenda.status !== 200) {
+      throw new Error(`Expected 200 but received ${ownAgenda.status}: ${JSON.stringify(ownAgenda.response)}`);
+    }
+    const ownAgendaData = ownAgenda.response.data as any[];
+    if (!Array.isArray(ownAgendaData) || ownAgendaData.length === 0) {
+      throw new Error(`Expected therapist agenda items but received ${JSON.stringify(ownAgenda.response)}`);
+    }
+    if (ownAgendaData.some((item) => item.therapistId !== therapistA.id)) {
+      throw new Error(`Expected only Therapist A appointments but received ${JSON.stringify(ownAgendaData)}`);
+    }
+    if (ownAgendaData.some((item) => !item.patient || !item.patient.id || !item.patient.name || !item.patient.email)) {
+      throw new Error(`Expected patient summary only but received ${JSON.stringify(ownAgendaData)}`);
+    }
+    if (ownAgendaData.some((item) => item.patient.passwordHash !== undefined || item.patient.role !== undefined)) {
+      throw new Error('Unexpected patient private fields were returned in agenda response');
+    }
+    console.log('PASS: Therapist A can access own agenda with minimal patient data');
+
+    console.log('TEST 8: Therapist A attempts Therapist B agenda');
+    const crossAgenda = await request(
+      'GET',
+      `/api/v1/therapist/schedules/${therapistB.id}/agenda`,
+      therapistAToken
+    );
+    if (crossAgenda.status !== 403) {
+      throw new Error(`Expected 403 but received ${crossAgenda.status}: ${JSON.stringify(crossAgenda.response)}`);
+    }
+    if (crossAgenda.response.data !== null) {
+      throw new Error('Expected no agenda data on unauthorized request');
+    }
+    console.log('PASS: Therapist A cannot access Therapist B agenda');
+
+    console.log('TEST 9: Patient attempts Therapist A agenda access');
+    const patientAgendaAttempt = await request(
+      'GET',
+      `/api/v1/therapist/schedules/${therapistA.id}/agenda`,
+      patientToken
+    );
+    if (patientAgendaAttempt.status !== 403) {
+      throw new Error(`Expected 403 but received ${patientAgendaAttempt.status}: ${JSON.stringify(patientAgendaAttempt.response)}`);
+    }
+    console.log('PASS: Patient cannot access therapist agenda');
+
+    console.log('TEST 10: Unauthenticated user requests therapist agenda');
+    const unauthenticatedAgenda = await request(
+      'GET',
+      `/api/v1/therapist/schedules/${therapistA.id}/agenda`
+    );
+    if (unauthenticatedAgenda.status !== 401) {
+      throw new Error(`Expected 401 but received ${unauthenticatedAgenda.status}: ${JSON.stringify(unauthenticatedAgenda.response)}`);
+    }
+    console.log('PASS: Unauthenticated request to agenda is rejected with 401');
+
+    console.log('TEST 11: Therapist A attempts query bypass to Therapist B agenda');
+    const queryBypass = await request(
+      'GET',
+      `/api/v1/appointments/therapist?therapistId=${therapistB.id}`,
+      therapistAToken
+    );
+    if (queryBypass.status !== 403) {
+      throw new Error(`Expected 403 but received ${queryBypass.status}: ${JSON.stringify(queryBypass.response)}`);
+    }
+    console.log('PASS: Query parameter cannot bypass therapist agenda ownership');
+
+    console.log('TEST 12: Therapist A attempts body bypass to Therapist B agenda');
+    const bodyBypass = await request(
+      'GET',
+      `/api/v1/appointments/therapist`,
+      therapistAToken,
+      { therapistId: therapistB.id }
+    );
+    if (bodyBypass.status !== 403) {
+      throw new Error(`Expected 403 but received ${bodyBypass.status}: ${JSON.stringify(bodyBypass.response)}`);
+    }
+    console.log('PASS: Request body cannot bypass therapist agenda ownership');
+
     console.log('ALL SCHEDULE OWNERSHIP TESTS PASSED');
   } finally {
     server.close();
+    if (appointmentIds.length > 0) {
+      await prisma.appointment.deleteMany({
+        where: {
+          id: { in: appointmentIds },
+        },
+      });
+    }
     await prisma.user.deleteMany({
       where: {
         email: {

@@ -2,11 +2,13 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { UnauthorizedError, ForbiddenError } from '../shared/errors';
 import { MIDDLEWARE_MESSAGES } from '../shared/constants';
+import { config } from '../../config';
 
 export interface JwtPayload {
   sub: string;
   email: string;
   role: string;
+  tokenType?: 'access' | 'refresh';
 }
 
 declare global {
@@ -29,8 +31,16 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
 
   const token = authHeader.split(' ')[1];
   try {
-    const secret = process.env.JWT_SECRET || 'changeme';
-    const decoded = jwt.verify(token, secret) as JwtPayload;
+    const secret = config.jwtSecret;
+    const decoded = jwt.verify(token, secret, {
+      algorithms: ['HS256'],
+      issuer: config.jwtIssuer,
+      audience: config.jwtAudience,
+    }) as JwtPayload;
+
+    if (decoded.tokenType && decoded.tokenType !== 'access') {
+      throw new Error('Invalid token type');
+    }
 
     req.user = {
       id: decoded.sub,

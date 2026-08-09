@@ -24,7 +24,17 @@ export const updateAppointmentStatusSchema = z.object({
   status: z.enum(['COMPLETED', 'CANCELLED', 'NO_SHOW']),
 });
 
+export const getAppointmentsQuerySchema = z.object({
+  search: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  status: z.string().optional(),
+  page: z.coerce.number().optional(),
+  limit: z.coerce.number().optional(),
+});
+
 export type GetAvailabilityQueryDto = z.infer<typeof getAvailabilityQuerySchema>;
 export type HoldSlotDto = z.infer<typeof holdSlotSchema>;
 export type SimulatePaymentDto = z.infer<typeof simulatePaymentSchema>;
 export type UpdateAppointmentStatusDto = z.infer<typeof updateAppointmentStatusSchema>;
+export type GetAppointmentsQueryDto = z.infer<typeof getAppointmentsQuerySchema>;

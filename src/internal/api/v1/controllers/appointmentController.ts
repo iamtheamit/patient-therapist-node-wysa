@@ -111,9 +111,14 @@ export class AppointmentController {
   public async getTherapistAppointments(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const therapistId = req.params.therapistId || req.user!.id;
-      const status = req.query.status as AppointmentStatus | undefined;
+      const filters = {
+        search: req.query.search as string | undefined,
+        startDate: req.query.startDate as string | undefined,
+        endDate: req.query.endDate as string | undefined,
+        status: req.query.status as string | undefined,
+      };
       const paginationParams = parsePaginationParams(req.query);
-      const list = await appointmentService.getTherapistAppointments(therapistId, status, paginationParams);
+      const list = await appointmentService.getTherapistAppointments(therapistId, filters, paginationParams);
       sendSuccess(res, list, APPOINTMENT_MESSAGES.THERAPIST_FETCH_SUCCESS, 200);
     } catch (err) {
       next(err);
@@ -123,9 +128,14 @@ export class AppointmentController {
   public async getPatientAppointments(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const patientId = req.user!.id;
-      const status = req.query.status as AppointmentStatus | undefined;
+      const filters = {
+        search: req.query.search as string | undefined,
+        startDate: req.query.startDate as string | undefined,
+        endDate: req.query.endDate as string | undefined,
+        status: req.query.status as string | undefined,
+      };
       const paginationParams = parsePaginationParams(req.query);
-      const list = await appointmentService.getPatientAppointments(patientId, status, paginationParams);
+      const list = await appointmentService.getPatientAppointments(patientId, filters, paginationParams);
       sendSuccess(res, list, APPOINTMENT_MESSAGES.PATIENT_FETCH_SUCCESS, 200);
     } catch (err) {
       next(err);

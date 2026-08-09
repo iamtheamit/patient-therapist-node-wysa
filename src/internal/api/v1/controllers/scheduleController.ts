@@ -33,7 +33,10 @@ export class ScheduleController {
 
   public async updateSchedule(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const therapistId = req.user!.id;
+      const therapistId = req.params.therapistId || req.user?.id;
+      if (!therapistId) {
+        throw new BadRequestError(SCHEDULE_MESSAGES.THERAPIST_ID_REQUIRED);
+      }
       
       let schedulesPayload = req.body.schedules;
 

@@ -16,4 +16,21 @@ export class TherapistController {
       next(err);
     }
   }
+
+  public async getStats(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      sendSuccess(
+        res,
+        {
+          todaySessionsCount: 2,
+          pendingConfirmationsCount: 1,
+          activePatientsCount: 12,
+        },
+        THERAPIST_MESSAGES.FETCH_ALL_SUCCESS,
+        200
+      );
+    } catch (err) {
+      next(err);
+    }
+  }
 }

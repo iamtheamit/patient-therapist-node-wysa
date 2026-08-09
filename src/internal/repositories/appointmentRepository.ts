@@ -2,6 +2,8 @@ import { prisma } from '../infrastructure/database/prismaClient';
 import { Appointment, AppointmentStatus, PaymentStatus, BookingType, RecurrenceFrequency, Prisma } from '@prisma/client';
 import { PaginationParams, formatPaginatedResult } from '../shared/helpers/pagination';
 
+import { generateSlotLockKey } from '../shared/helpers/lockHelper';
+
 export interface CreateHoldParams {
   patientId: string;
   therapistId: string;
@@ -14,7 +16,24 @@ export interface CreateHoldParams {
   holdExpiresAt: Date;
 }
 
+export interface AppointmentFilterParams {
+  search?: string;
+  startDate?: string;
+  endDate?: string;
+  status?: string;
+}
+
 export class AppointmentRepository {
+  public async acquireSlotLock(
+    tx: Prisma.TransactionClient,
+    therapistId: string,
+    startTime: Date,
+    endTime: Date
+  ): Promise<void> {
+    const { key1, key2 } = generateSlotLockKey(therapistId, startTime, endTime);
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${key1}::integer, ${key2}::integer)`;
+  }
+
   public async findActiveAppointmentsInRange(
     therapistId: string,
     startRange: Date,
@@ -111,8 +130,9 @@ export class AppointmentRepository {
     });
   }
 
-  public async findById(id: string): Promise<Appointment | null> {
-    return prisma.appointment.findUnique({
+  public async findById(id: string, tx?: Prisma.TransactionClient): Promise<Appointment | null> {
+    const client = tx || prisma;
+    return client.appointment.findUnique({
       where: { id },
       include: {
         patient: { select: { id: true, name: true, email: true } },
@@ -124,13 +144,15 @@ export class AppointmentRepository {
   public async updateStatus(
     id: string,
     appointmentStatus: AppointmentStatus,
-    paymentStatus?: PaymentStatus
+    paymentStatus?: PaymentStatus,
+    tx?: Prisma.TransactionClient
   ): Promise<Appointment> {
+    const client = tx || prisma;
     const data: Prisma.AppointmentUpdateInput = { appointmentStatus };
     if (paymentStatus) {
       data.paymentStatus = paymentStatus;
     }
-    return prisma.appointment.update({
+    return client.appointment.update({
       where: { id },
       data,
     });
@@ -148,12 +170,16 @@ export class AppointmentRepository {
 
   public async findByTherapist(
     therapistId: string,
-    status?: AppointmentStatus,
+    filters?: AppointmentFilterParams | AppointmentStatus,
     paginationParams?: PaginationParams
   ): Promise<any> {
     const where: Prisma.AppointmentWhereInput = { therapistId };
-    if (status) {
-      where.appointmentStatus = status;
+    const filterObj = typeof filters === 'string' ? { status: filters } : filters;
+
+    if (filterObj?.status) {
+      if (Object.values(AppointmentStatus).includes(filterObj.status as any)) {
+        where.appointmentStatus = filterObj.status as AppointmentStatus;
+      }
     } else {
       where.appointmentStatus = {
         notIn: [AppointmentStatus.HOLD, AppointmentStatus.HOLD_EXPIRED, AppointmentStatus.PAYMENT_FAILED],
@@ -180,11 +206,69 @@ export class AppointmentRepository {
 
   public async findByPatient(
     patientId: string,
-    status?: AppointmentStatus,
+    filters?: AppointmentFilterParams | AppointmentStatus,
     paginationParams?: PaginationParams
   ): Promise<any> {
     const where: Prisma.AppointmentWhereInput = { patientId };
-    if (status) where.appointmentStatus = status;
+    const now = new Date();
+    const filterObj = typeof filters === 'string' ? { status: filters } : filters;
+
+    if (filterObj?.status) {
+      const s = filterObj.status;
+      if (s === 'upcoming') {
+        where.startTime = { gte: now };
+        where.appointmentStatus = { in: [AppointmentStatus.SCHEDULED, AppointmentStatus.COMPLETED] };
+      } else if (s === 'past') {
+        where.OR = [
+          { startTime: { lt: now } },
+          { appointmentStatus: { in: [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED] } },
+        ];
+      } else if (s === 'holds') {
+        where.appointmentStatus = AppointmentStatus.HOLD;
+        where.holdExpiresAt = { gt: now };
+      } else if (s === 'failed') {
+        where.OR = [
+          { appointmentStatus: { in: [AppointmentStatus.HOLD_EXPIRED, AppointmentStatus.PAYMENT_FAILED] } },
+          { appointmentStatus: AppointmentStatus.HOLD, holdExpiresAt: { lte: now } },
+        ];
+      } else if (Object.values(AppointmentStatus).includes(s as any)) {
+        where.appointmentStatus = s as AppointmentStatus;
+      }
+    }
+
+    if (filterObj?.startDate || filterObj?.endDate) {
+      const dateCond: Prisma.DateTimeFilter = {};
+      if (filterObj.startDate) {
+        const parts = filterObj.startDate.split('-').map(Number);
+        dateCond.gte = parts.length === 3 && !isNaN(parts[0])
+          ? new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0)
+          : new Date(filterObj.startDate);
+      }
+      if (filterObj.endDate) {
+        const parts = filterObj.endDate.split('-').map(Number);
+        dateCond.lte = parts.length === 3 && !isNaN(parts[0])
+          ? new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999)
+          : new Date(filterObj.endDate);
+      }
+      where.startTime = {
+        ...(typeof where.startTime === 'object' ? where.startTime : {}),
+        ...dateCond,
+      };
+    }
+
+    if (filterObj?.search) {
+      const term = filterObj.search.trim();
+      if (term) {
+        where.AND = [
+          {
+            OR: [
+              { therapist: { name: { contains: term, mode: 'insensitive' } } },
+              { therapist: { email: { contains: term, mode: 'insensitive' } } },
+            ],
+          },
+        ];
+      }
+    }
 
     const { page, limit, skip, take } = paginationParams || {};
 
@@ -194,7 +278,7 @@ export class AppointmentRepository {
         include: {
           therapist: { select: { id: true, name: true, email: true } },
         },
-        orderBy: { startTime: 'asc' },
+        orderBy: { startTime: 'desc' },
         ...(skip !== undefined ? { skip } : {}),
         ...(take !== undefined ? { take } : {}),
       }),

@@ -49,6 +49,20 @@ export class AppointmentRepository {
       },
       data: {
         appointmentStatus: AppointmentStatus.HOLD_EXPIRED,
+        paymentStatus: PaymentStatus.FAILED,
+      },
+    });
+  }
+
+  public async expireOldHolds(): Promise<void> {
+    await prisma.appointment.updateMany({
+      where: {
+        appointmentStatus: AppointmentStatus.HOLD,
+        holdExpiresAt: { lte: new Date() },
+      },
+      data: {
+        appointmentStatus: AppointmentStatus.HOLD_EXPIRED,
+        paymentStatus: PaymentStatus.FAILED,
       },
     });
   }
@@ -138,7 +152,13 @@ export class AppointmentRepository {
     paginationParams?: PaginationParams
   ): Promise<any> {
     const where: Prisma.AppointmentWhereInput = { therapistId };
-    if (status) where.appointmentStatus = status;
+    if (status) {
+      where.appointmentStatus = status;
+    } else {
+      where.appointmentStatus = {
+        notIn: [AppointmentStatus.HOLD, AppointmentStatus.HOLD_EXPIRED, AppointmentStatus.PAYMENT_FAILED],
+      };
+    }
 
     const { page, limit, skip, take } = paginationParams || {};
 
@@ -182,5 +202,171 @@ export class AppointmentRepository {
     ]);
 
     return formatPaginatedResult(appointments, total, page, limit);
+  }
+
+  // ─── Dashboard-specific query methods ───────────────────────────────────────
+
+  public async countByPatientStatuses(
+    patientId: string,
+    statuses: AppointmentStatus[]
+  ): Promise<number> {
+    return prisma.appointment.count({
+      where: {
+        patientId,
+        appointmentStatus: { in: statuses },
+      },
+    });
+  }
+
+  public async countByTherapistStatuses(
+    therapistId: string,
+    statuses: AppointmentStatus[]
+  ): Promise<number> {
+    return prisma.appointment.count({
+      where: {
+        therapistId,
+        appointmentStatus: { in: statuses },
+      },
+    });
+  }
+
+  public async countDistinctTherapists(patientId: string): Promise<number> {
+    const result = await prisma.appointment.findMany({
+      where: {
+        patientId,
+        appointmentStatus: {
+          in: [AppointmentStatus.SCHEDULED, AppointmentStatus.COMPLETED],
+        },
+      },
+      select: { therapistId: true },
+      distinct: ['therapistId'],
+    });
+    return result.length;
+  }
+
+  public async countDistinctPatients(therapistId: string): Promise<number> {
+    const result = await prisma.appointment.findMany({
+      where: {
+        therapistId,
+        appointmentStatus: {
+          in: [AppointmentStatus.SCHEDULED, AppointmentStatus.COMPLETED],
+        },
+      },
+      select: { patientId: true },
+      distinct: ['patientId'],
+    });
+    return result.length;
+  }
+
+  public async findUpcomingForPatient(patientId: string, limit: number = 5) {
+    const now = new Date();
+    return prisma.appointment.findMany({
+      where: {
+        patientId,
+        startTime: { gt: now },
+        appointmentStatus: { in: [AppointmentStatus.SCHEDULED] },
+      },
+      include: {
+        therapist: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { startTime: 'asc' },
+      take: limit,
+    });
+  }
+
+  public async findUpcomingForTherapist(therapistId: string, limit: number = 5) {
+    const now = new Date();
+    return prisma.appointment.findMany({
+      where: {
+        therapistId,
+        startTime: { gt: now },
+        appointmentStatus: { in: [AppointmentStatus.SCHEDULED] },
+      },
+      include: {
+        patient: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { startTime: 'asc' },
+      take: limit,
+    });
+  }
+
+  public async findActiveHoldsForPatient(patientId: string) {
+    const now = new Date();
+    return prisma.appointment.findMany({
+      where: {
+        patientId,
+        appointmentStatus: AppointmentStatus.HOLD,
+        holdExpiresAt: { gt: now },
+      },
+      include: {
+        therapist: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { holdExpiresAt: 'asc' },
+    });
+  }
+
+  public async findTodayAppointments(therapistId: string) {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    return prisma.appointment.findMany({
+      where: {
+        therapistId,
+        startTime: { gte: todayStart, lte: todayEnd },
+        appointmentStatus: { in: [AppointmentStatus.SCHEDULED, AppointmentStatus.COMPLETED] },
+      },
+      include: {
+        patient: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { startTime: 'asc' },
+    });
+  }
+
+  public async findRecentForPatient(patientId: string, limit: number = 5) {
+    const now = new Date();
+    return prisma.appointment.findMany({
+      where: {
+        patientId,
+        startTime: { lt: now },
+        appointmentStatus: {
+          in: [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW],
+        },
+      },
+      include: {
+        therapist: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { startTime: 'desc' },
+      take: limit,
+    });
+  }
+
+  public async findRecentForTherapist(therapistId: string, limit: number = 5) {
+    const now = new Date();
+    return prisma.appointment.findMany({
+      where: {
+        therapistId,
+        startTime: { lt: now },
+        appointmentStatus: {
+          in: [AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED, AppointmentStatus.NO_SHOW],
+        },
+      },
+      include: {
+        patient: { select: { id: true, name: true, email: true } },
+      },
+      orderBy: { startTime: 'desc' },
+      take: limit,
+    });
+  }
+
+  public async countPendingHoldsForTherapist(therapistId: string): Promise<number> {
+    const now = new Date();
+    return prisma.appointment.count({
+      where: {
+        therapistId,
+        appointmentStatus: AppointmentStatus.HOLD,
+        holdExpiresAt: { gt: now },
+      },
+    });
   }
 }

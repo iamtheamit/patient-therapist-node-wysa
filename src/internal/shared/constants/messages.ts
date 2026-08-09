@@ -52,10 +52,17 @@ export const THERAPIST_MESSAGES = {
   FETCH_ALL_SUCCESS: 'Therapists loaded successfully.',
 } as const;
 
+export const DASHBOARD_MESSAGES = {
+  PATIENT_SUCCESS: 'Patient dashboard data loaded successfully.',
+  THERAPIST_SUCCESS: 'Therapist dashboard data loaded successfully.',
+} as const;
+
 export const MESSAGES = {
   AUTH: AUTH_MESSAGES,
   APPOINTMENT: APPOINTMENT_MESSAGES,
   SCHEDULE: SCHEDULE_MESSAGES,
   MIDDLEWARE: MIDDLEWARE_MESSAGES,
   THERAPIST: THERAPIST_MESSAGES,
+  DASHBOARD: DASHBOARD_MESSAGES,
 } as const;
+

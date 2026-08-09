@@ -11,6 +11,7 @@ export interface TherapistAvailabilitySlot {
   isRecurring: boolean;
   repeatType?: string | null;
   repeatFrequency?: string | null;
+  recurrenceEndDate?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -24,6 +25,7 @@ export interface CreateAvailabilitySlotParams {
   isRecurring?: boolean;
   repeatType?: string;
   repeatFrequency?: string;
+  recurrenceEndDate?: string | null;
 }
 
 export class AvailabilitySlotRepository {
@@ -42,6 +44,7 @@ export class AvailabilitySlotRepository {
         isRecurring: data.isRecurring ?? false,
         repeatType: data.repeatType,
         repeatFrequency: data.repeatFrequency,
+        recurrenceEndDate: data.recurrenceEndDate,
       },
     });
   }

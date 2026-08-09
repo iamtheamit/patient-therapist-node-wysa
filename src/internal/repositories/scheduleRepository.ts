@@ -25,6 +25,9 @@ export class ScheduleRepository {
           startTime: item.startTime,
           endTime: item.endTime,
           slotDuration: item.slotDuration,
+          bufferDuration: item.bufferDuration ?? 10,
+          breakStartTime: item.breakStartTime ?? null,
+          breakEndTime: item.breakEndTime ?? null,
           isActive: item.isActive ?? true,
         })),
       });

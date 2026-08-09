@@ -184,10 +184,12 @@ export class AppointmentService {
   }
 
   public async getTherapistAppointments(therapistId: string, status?: AppointmentStatus, paginationParams?: PaginationParams) {
+    await appointmentRepo.expireOldHolds();
     return appointmentRepo.findByTherapist(therapistId, status, paginationParams);
   }
 
   public async getPatientAppointments(patientId: string, status?: AppointmentStatus, paginationParams?: PaginationParams) {
+    await appointmentRepo.expireOldHolds();
     return appointmentRepo.findByPatient(patientId, status, paginationParams);
   }
 }

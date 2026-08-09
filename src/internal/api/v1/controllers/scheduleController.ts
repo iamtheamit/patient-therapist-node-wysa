@@ -39,7 +39,8 @@ export class ScheduleController {
 
       // Handle weeklyRules format if sent by frontend form
       if (!schedulesPayload && Array.isArray(req.body.weeklyRules)) {
-        const slotDuration = req.body.slotDurationMinutes || 30;
+        const slotDuration = req.body.slotDurationMinutes || 50;
+        const bufferDuration = req.body.bufferDurationMinutes ?? 10;
         schedulesPayload = req.body.weeklyRules
           .filter((rule: any) => rule.isEnabled)
           .map((rule: any) => ({
@@ -47,6 +48,9 @@ export class ScheduleController {
             startTime: rule.startTime,
             endTime: rule.endTime,
             slotDuration,
+            bufferDuration,
+            breakStartTime: rule.breakStartTime || null,
+            breakEndTime: rule.breakEndTime || null,
             isActive: true,
           }));
       }

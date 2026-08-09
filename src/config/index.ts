@@ -13,6 +13,6 @@ export const config = {
     : 30 * 24 * 60 * 60, // Default 30 days (2592000 seconds)
   holdDurationSeconds: process.env.SLOT_HOLD_DURATION_SECONDS
     ? parseInt(process.env.SLOT_HOLD_DURATION_SECONDS, 10)
-    : 5 * 60, // Default 5 minutes (300 seconds)
+    : 60, // Default 1 minute (60 seconds)
 };
 

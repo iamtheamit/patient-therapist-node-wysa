@@ -67,65 +67,125 @@ export class AvailabilityService {
         const daySlotEnd = new Date(currDate);
         daySlotEnd.setHours(endH, endM, 0, 0);
 
+        // Break window for the day
+        let breakStart: Date | null = null;
+        let breakEnd: Date | null = null;
+        if (schedule.breakStartTime && schedule.breakEndTime) {
+          const [bStartH, bStartM] = schedule.breakStartTime.split(':').map(Number);
+          const [bEndH, bEndM] = schedule.breakEndTime.split(':').map(Number);
+          breakStart = new Date(currDate);
+          breakStart.setHours(bStartH, bStartM, 0, 0);
+          breakEnd = new Date(currDate);
+          breakEnd.setHours(bEndH, bEndM, 0, 0);
+        }
+
+        const slotDurMs = schedule.slotDuration * 60 * 1000;
+        const bufferDurMs = (schedule.bufferDuration ?? 10) * 60 * 1000;
         let slotStart = new Date(daySlotStart);
 
-        while (slotStart.getTime() + schedule.slotDuration * 60 * 1000 <= daySlotEnd.getTime()) {
-          const slotEnd = new Date(slotStart.getTime() + schedule.slotDuration * 60 * 1000);
+        while (slotStart.getTime() + slotDurMs <= daySlotEnd.getTime()) {
+          const slotEnd = new Date(slotStart.getTime() + slotDurMs);
 
           if (slotStart > now) {
-            const isBookedOrHeld = activeAppointments.some((appt) => {
-              const apptStart = new Date(appt.startTime);
-              const apptEnd = new Date(appt.endTime);
-              return apptStart < slotEnd && apptEnd > slotStart;
-            });
+            // Check break overlap
+            const overlapsBreak =
+              breakStart && breakEnd && slotStart < breakEnd && slotEnd > breakStart;
 
-            if (!isBookedOrHeld) {
-              const key = slotStart.toISOString();
-              if (!seenSlots.has(key)) {
-                seenSlots.add(key);
-                availableSlots.push({
-                  startTime: slotStart.toISOString(),
-                  endTime: slotEnd.toISOString(),
-                  durationMinutes: schedule.slotDuration,
-                });
+            if (!overlapsBreak) {
+              const isBookedOrHeld = activeAppointments.some((appt) => {
+                const apptStart = new Date(appt.startTime);
+                const apptEnd = new Date(appt.endTime);
+                return apptStart < slotEnd && apptEnd > slotStart;
+              });
+
+              if (!isBookedOrHeld) {
+                const key = slotStart.toISOString();
+                if (!seenSlots.has(key)) {
+                  seenSlots.add(key);
+                  availableSlots.push({
+                    startTime: slotStart.toISOString(),
+                    endTime: slotEnd.toISOString(),
+                    durationMinutes: schedule.slotDuration,
+                  });
+                }
               }
             }
           }
 
-          slotStart = slotEnd;
+          // Advance by session length + inter-session buffer
+          slotStart = new Date(slotStart.getTime() + slotDurMs + bufferDurMs);
         }
       }
 
       currDate.setDate(currDate.getDate() + 1);
     }
 
-    // 2. Process custom availability slots created for specific dates
+    // 2. Process custom availability slots created for specific dates (including recurring ones)
     for (const cSlot of customSlots) {
       const [year, month, day] = cSlot.date.split('-').map(Number);
       const [startH, startM] = cSlot.startTime.split(':').map(Number);
       const [endH, endM] = cSlot.endTime.split(':').map(Number);
 
-      const slotStart = new Date(year, month - 1, day, startH, startM, 0, 0);
-      const slotEnd = new Date(year, month - 1, day, endH, endM, 0, 0);
+      const origDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+      const recEnd = cSlot.recurrenceEndDate
+        ? (() => {
+            const [ey, em, ed] = cSlot.recurrenceEndDate.split('-').map(Number);
+            return new Date(ey, em - 1, ed, 23, 59, 59, 999);
+          })()
+        : null;
 
-      if (slotStart >= startRange && slotStart <= endRange && slotStart > now) {
-        const isBookedOrHeld = activeAppointments.some((appt) => {
-          const apptStart = new Date(appt.startTime);
-          const apptEnd = new Date(appt.endTime);
-          return apptStart < slotEnd && apptEnd > slotStart;
-        });
+      let currDate = new Date(origDate);
 
-        if (!isBookedOrHeld) {
-          const key = slotStart.toISOString();
-          if (!seenSlots.has(key)) {
-            seenSlots.add(key);
-            const durationMins = Math.max(15, Math.round((slotEnd.getTime() - slotStart.getTime()) / 60000));
-            availableSlots.push({
-              startTime: slotStart.toISOString(),
-              endTime: slotEnd.toISOString(),
-              durationMinutes: durationMins,
-            });
+      while (currDate <= endRange) {
+        if (recEnd && currDate > recEnd) {
+          break;
+        }
+
+        const slotStart = new Date(currDate.getFullYear(), currDate.getMonth(), currDate.getDate(), startH, startM, 0, 0);
+        const slotEnd = new Date(currDate.getFullYear(), currDate.getMonth(), currDate.getDate(), endH, endM, 0, 0);
+
+        if (slotStart >= startRange && slotStart <= endRange && slotStart > now) {
+          const isBookedOrHeld = activeAppointments.some((appt) => {
+            const apptStart = new Date(appt.startTime);
+            const apptEnd = new Date(appt.endTime);
+            return apptStart < slotEnd && apptEnd > slotStart;
+          });
+
+          if (!isBookedOrHeld) {
+            const key = slotStart.toISOString();
+            if (!seenSlots.has(key)) {
+              seenSlots.add(key);
+              const durationMins = Math.max(15, Math.round((slotEnd.getTime() - slotStart.getTime()) / 60000));
+              availableSlots.push({
+                startTime: slotStart.toISOString(),
+                endTime: slotEnd.toISOString(),
+                durationMinutes: durationMins,
+              });
+            }
           }
+        }
+
+        if (cSlot.isRecurring) {
+          const repeat = cSlot.repeatType;
+          const freq = cSlot.repeatFrequency;
+
+          if (repeat === 'Daily') {
+            currDate.setDate(currDate.getDate() + 1);
+          } else if (repeat === 'Weekly') {
+            let weeks = 1;
+            if (freq === 'Every 2 weeks') weeks = 2;
+            else if (freq === 'Every 3 weeks') weeks = 3;
+            else if (freq === 'Every 4 weeks') weeks = 4;
+            currDate.setDate(currDate.getDate() + 7 * weeks);
+          } else if (repeat === 'Bi-Weekly') {
+            currDate.setDate(currDate.getDate() + 14);
+          } else if (repeat === 'Monthly') {
+            currDate.setMonth(currDate.getMonth() + 1);
+          } else {
+            break;
+          }
+        } else {
+          break;
         }
       }
     }

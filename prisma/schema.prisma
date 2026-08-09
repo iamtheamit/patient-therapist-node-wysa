@@ -65,15 +65,18 @@ model User {
 }
 
 model TherapistSchedule {
-  id           String   @id @default(uuid())
-  therapistId  String
-  dayOfWeek    Int      // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-  startTime    String   // "09:00" (HH:mm format)
-  endTime      String   // "17:00" (HH:mm format)
-  slotDuration Int      // Duration in minutes, e.g., 30
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String   @id @default(uuid())
+  therapistId    String
+  dayOfWeek      Int      // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  startTime      String   // "09:00" (HH:mm format)
+  endTime        String   // "17:00" (HH:mm format)
+  slotDuration   Int      // Duration in minutes, e.g., 50
+  bufferDuration Int      @default(10) // Inter-session buffer in minutes, e.g., 10
+  breakStartTime String?  // "12:00" (HH:mm format)
+  breakEndTime   String?  // "13:00" (HH:mm format)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   therapist User @relation("TherapistSchedules", fields: [therapistId], references: [id], onDelete: Cascade)
 
@@ -90,6 +93,7 @@ model TherapistAvailabilitySlot {
   isRecurring     Boolean  @default(false)
   repeatType      String?
   repeatFrequency String?
+  recurrenceEndDate String? // "YYYY-MM-DD"
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 

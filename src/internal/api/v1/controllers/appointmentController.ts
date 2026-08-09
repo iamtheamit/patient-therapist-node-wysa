@@ -72,6 +72,27 @@ export class AppointmentController {
     }
   }
 
+  public async confirmSeries(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const patientId = req.user!.id;
+      const { seriesId } = req.params;
+      const { notes } = req.body as { notes?: string };
+      const confirmed = await appointmentService.confirmSeries(patientId, seriesId, notes);
+      sendSuccess(
+        res,
+        {
+          seriesId,
+          confirmedCount: confirmed.length,
+          appointments: confirmed.map((a) => ({ id: a.id, startTime: a.startTime, endTime: a.endTime })),
+        },
+        APPOINTMENT_MESSAGES.PAYMENT_SUCCESS,
+        200
+      );
+    } catch (err) {
+      next(err);
+    }
+  }
+
   public async cancelAppointment(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user!.id;

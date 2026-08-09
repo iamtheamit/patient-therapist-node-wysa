@@ -33,6 +33,15 @@ appointmentRouter.post(
   controller.pay.bind(controller)
 );
 
+// Atomic series confirmation (recurring bookings)
+appointmentRouter.post(
+  '/series/:seriesId/pay',
+  authenticateToken,
+  requireRole('PATIENT'),
+  idempotencyMiddleware,
+  controller.confirmSeries.bind(controller)
+);
+
 appointmentRouter.get(
   '/patient',
   authenticateToken,

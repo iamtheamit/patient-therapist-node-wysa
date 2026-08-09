@@ -205,7 +205,13 @@ export class AppointmentService {
       }
 
       if (dto.status === 'SUCCESS') {
-        const updated = await appointmentRepo.updateStatus(appointmentId, AppointmentStatus.SCHEDULED, PaymentStatus.SUCCESS, tx);
+        const updated = await appointmentRepo.updateStatus(
+          appointmentId,
+          AppointmentStatus.SCHEDULED,
+          PaymentStatus.SUCCESS,
+          tx,
+          dto.notes
+        );
         logger.info('APPOINTMENT_CONFIRMED', {
           appointmentId: updated.id,
           patientId,
@@ -312,5 +318,89 @@ export class AppointmentService {
   public async getPatientAppointments(patientId: string, filters?: AppointmentFilterParams | AppointmentStatus, paginationParams?: PaginationParams) {
     await appointmentRepo.expireOldHolds();
     return appointmentRepo.findByPatient(patientId, filters, paginationParams);
+  }
+
+  /**
+   * Atomically confirm all HOLD appointments in a recurring series.
+   * Acquires advisory locks for every slot (sorted to prevent deadlock),
+   * validates none are expired or already SCHEDULED by another patient,
+   * then transitions the entire series to SCHEDULED in one transaction.
+   */
+  public async confirmSeries(
+    patientId: string,
+    seriesId: string,
+    notes?: string
+  ): Promise<Appointment[]> {
+    return prisma.$transaction(async (tx) => {
+      // 1. Fetch all appointments in the series
+      const seriesAppts = await tx.appointment.findMany({
+        where: { seriesId, patientId },
+        orderBy: { startTime: 'asc' },
+      });
+
+      if (seriesAppts.length === 0) {
+        throw new NotFoundError(APPOINTMENT_MESSAGES.NOT_FOUND);
+      }
+
+      // 2. Acquire advisory locks for each slot (sorted = no deadlock)
+      for (const appt of seriesAppts) {
+        await appointmentRepo.acquireSlotLock(tx, appt.therapistId, appt.startTime, appt.endTime);
+      }
+
+      const now = new Date();
+
+      // 3. Validate every appointment in the series
+      for (const appt of seriesAppts) {
+        if (appt.appointmentStatus !== AppointmentStatus.HOLD) {
+          throw new BadRequestError(
+            APPOINTMENT_MESSAGES.INVALID_STATE_FOR_PAYMENT(appt.appointmentStatus)
+          );
+        }
+        if (appt.holdExpiresAt && appt.holdExpiresAt <= now) {
+          throw new ConflictError(APPOINTMENT_MESSAGES.HOLD_EXPIRED);
+        }
+        // Guard: another patient already booked one of these slots
+        const conflict = await tx.appointment.findFirst({
+          where: {
+            therapistId: appt.therapistId,
+            startTime: appt.startTime,
+            endTime: appt.endTime,
+            appointmentStatus: AppointmentStatus.SCHEDULED,
+            id: { not: appt.id },
+          },
+        });
+        if (conflict) {
+          logger.warn('SERIES_SLOT_CONFLICT', {
+            seriesId,
+            slotId: appt.id,
+            startTime: appt.startTime.toISOString(),
+          });
+          throw new ConflictError(APPOINTMENT_MESSAGES.SLOT_CONFLICT(appt.startTime.toISOString()));
+        }
+      }
+
+      // 4. Atomically confirm all slots
+      const confirmed: Appointment[] = [];
+      for (const appt of seriesAppts) {
+        const updated = await appointmentRepo.updateStatus(
+          appt.id,
+          AppointmentStatus.SCHEDULED,
+          PaymentStatus.SUCCESS,
+          tx,
+          notes
+        );
+        confirmed.push(updated);
+      }
+
+      logger.info('SERIES_CONFIRMED', {
+        seriesId,
+        patientId,
+        count: confirmed.length,
+        operation: 'CONFIRM_SERIES',
+        result: 'SUCCESS',
+      });
+
+      return confirmed;
+    });
   }
 }

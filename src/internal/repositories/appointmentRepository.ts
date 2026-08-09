@@ -145,12 +145,16 @@ export class AppointmentRepository {
     id: string,
     appointmentStatus: AppointmentStatus,
     paymentStatus?: PaymentStatus,
-    tx?: Prisma.TransactionClient
+    tx?: Prisma.TransactionClient,
+    notes?: string
   ): Promise<Appointment> {
     const client = tx || prisma;
     const data: Prisma.AppointmentUpdateInput = { appointmentStatus };
     if (paymentStatus) {
       data.paymentStatus = paymentStatus;
+    }
+    if (notes !== undefined) {
+      data.notes = notes;
     }
     return client.appointment.update({
       where: { id },

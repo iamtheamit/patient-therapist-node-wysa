@@ -18,6 +18,7 @@ export const holdSlotSchema = z.object({
 
 export const simulatePaymentSchema = z.object({
   status: z.enum(['SUCCESS', 'FAILED']),
+  notes: z.string().max(2000).optional(),
 });
 
 export const updateAppointmentStatusSchema = z.object({

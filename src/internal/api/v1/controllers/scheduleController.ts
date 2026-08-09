@@ -2,10 +2,20 @@ import { Request, Response, NextFunction } from 'express';
 import { ScheduleService } from '../../../services/scheduleService';
 import { updateScheduleSchema } from '../../../validators/scheduleValidator';
 import { sendSuccess } from '../../../shared/responses';
-import { BadRequestError } from '../../../shared/errors';
+import { BadRequestError, ForbiddenError } from '../../../shared/errors';
 import { SCHEDULE_MESSAGES } from '../../../shared/constants';
 
 const service = new ScheduleService();
+
+function getRequestedTherapistId(req: Request): string | undefined {
+  return req.params.therapistId || req.user?.id;
+}
+
+function ensureTherapistOwnership(req: Request, therapistId: string): void {
+  if (req.user?.role === 'THERAPIST' && req.user.id !== therapistId) {
+    throw new ForbiddenError('You do not have permission to modify this therapist schedule.');
+  }
+}
 
 const DAY_MAP: Record<string, number> = {
   Sunday: 0,
@@ -20,10 +30,12 @@ const DAY_MAP: Record<string, number> = {
 export class ScheduleController {
   public async getSchedule(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const therapistId = req.params.therapistId || req.user?.id;
+      const therapistId = getRequestedTherapistId(req);
       if (!therapistId) {
         throw new BadRequestError(SCHEDULE_MESSAGES.THERAPIST_ID_REQUIRED);
       }
+
+      ensureTherapistOwnership(req, therapistId);
       const schedule = await service.getTherapistSchedule(therapistId);
       sendSuccess(res, schedule, SCHEDULE_MESSAGES.FETCH_SUCCESS, 200);
     } catch (err) {
@@ -33,10 +45,12 @@ export class ScheduleController {
 
   public async updateSchedule(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const therapistId = req.params.therapistId || req.user?.id;
+      const therapistId = getRequestedTherapistId(req);
       if (!therapistId) {
         throw new BadRequestError(SCHEDULE_MESSAGES.THERAPIST_ID_REQUIRED);
       }
+
+      ensureTherapistOwnership(req, therapistId);
       
       let schedulesPayload = req.body.schedules;
 

@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { AvailabilitySlotService } from '../../../services/availabilitySlotService';
 import { createAvailabilitySlotSchema } from '../../../validators/availabilitySlotValidator';
 import { sendSuccess } from '../../../shared/responses';
-import { BadRequestError } from '../../../shared/errors';
+import { BadRequestError, ForbiddenError } from '../../../shared/errors';
 import { parsePaginationParams } from '../../../shared/helpers/pagination';
 
 const service = new AvailabilitySlotService();
@@ -24,6 +24,9 @@ export class AvailabilitySlotController {
       const therapistId = req.params.therapistId || req.user?.id;
       if (!therapistId) {
         throw new BadRequestError('Therapist ID is required.');
+      }
+      if (req.user?.role === 'THERAPIST' && req.user.id !== therapistId) {
+        throw new ForbiddenError('You do not have permission to access this therapist availability.');
       }
       const date = req.query.date as string | undefined;
       const paginationParams = parsePaginationParams(req.query);

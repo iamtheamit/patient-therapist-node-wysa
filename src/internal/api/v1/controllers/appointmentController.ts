@@ -11,6 +11,7 @@ import { AppointmentStatus } from '@prisma/client';
 import { sendSuccess } from '../../../shared/responses';
 import { APPOINTMENT_MESSAGES } from '../../../shared/constants';
 import { parsePaginationParams } from '../../../shared/helpers/pagination';
+import { ForbiddenError } from '../../../shared/errors';
 
 const availabilityService = new AvailabilityService();
 const appointmentService = new AppointmentService();
@@ -132,6 +133,9 @@ export class AppointmentController {
   public async getTherapistAppointments(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const therapistId = req.params.therapistId || req.user!.id;
+      if (req.user?.role === 'THERAPIST' && req.user.id !== therapistId) {
+        throw new ForbiddenError('You do not have permission to access this therapist agenda.');
+      }
       const filters = {
         search: req.query.search as string | undefined,
         startDate: req.query.startDate as string | undefined,

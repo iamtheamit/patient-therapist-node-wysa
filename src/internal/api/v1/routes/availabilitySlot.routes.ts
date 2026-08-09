@@ -15,6 +15,7 @@ availabilitySlotRouter.post(
 availabilitySlotRouter.get(
   '/:therapistId?',
   authenticateToken,
+  requireRole('THERAPIST', 'ADMIN'),
   controller.getSlots.bind(controller)
 );
 

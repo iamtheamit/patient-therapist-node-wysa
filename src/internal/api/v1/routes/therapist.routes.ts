@@ -9,7 +9,7 @@ const scheduleController = new ScheduleController();
 
 therapistRouter.get('/', authenticateToken, controller.getAll.bind(controller));
 therapistRouter.get('/:therapistId/stats', authenticateToken, controller.getStats.bind(controller));
-therapistRouter.get('/:therapistId/schedule-config', authenticateToken, scheduleController.getSchedule.bind(scheduleController));
+therapistRouter.get('/:therapistId/schedule-config', authenticateToken, requireRole('THERAPIST', 'ADMIN'), scheduleController.getSchedule.bind(scheduleController));
 therapistRouter.put(
   '/:therapistId/schedule-config',
   authenticateToken,

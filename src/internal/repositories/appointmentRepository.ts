@@ -149,16 +149,13 @@ export class AppointmentRepository {
     notes?: string
   ): Promise<Appointment> {
     const client = tx || prisma;
-    const data: Prisma.AppointmentUpdateInput = { appointmentStatus };
-    if (paymentStatus) {
-      data.paymentStatus = paymentStatus;
-    }
-    if (notes !== undefined) {
-      data.notes = notes;
-    }
     return client.appointment.update({
       where: { id },
-      data,
+      data: {
+        appointmentStatus,
+        ...(paymentStatus !== undefined ? { paymentStatus } : {}),
+        ...(notes !== undefined ? { notes } : {}),
+      },
     });
   }
 

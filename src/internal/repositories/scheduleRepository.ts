@@ -73,7 +73,6 @@ export class ScheduleRepository {
           endTime: item.endTime,
           slotDuration: item.slotDuration,
           bufferDuration: item.bufferDuration ?? DOMAIN_CONSTANTS.DEFAULT_BUFFER_DURATION_MINUTES,
-
           breakStartTime: item.breakStartTime ?? null,
           breakEndTime: item.breakEndTime ?? null,
           isActive: item.isActive ?? true,

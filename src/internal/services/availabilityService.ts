@@ -22,7 +22,6 @@ export class AvailabilityService {
     const startRange = parseDateString(startDateStr, false);
     const endRange = parseDateString(endDateStr, true);
 
-
     const now = new Date();
     const schedules = await scheduleRepo.findByTherapistIdForDateRange(therapistId, startRange, endRange);
     const activeAppointments = await appointmentRepo.findActiveAppointmentsInRange(
@@ -39,7 +38,7 @@ export class AvailabilityService {
 
     while (currDate <= endRange) {
       const dayOfWeek = currDate.getDay();
-      
+
       // Filter schedules effective on currDate
       const activeForDay = schedules.filter((s: any) => {
         if (s.dayOfWeek !== dayOfWeek) return false;

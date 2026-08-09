@@ -53,7 +53,7 @@ export class ScheduleController {
       }
 
       ensureTherapistOwnership(req, therapistId);
-      
+
       let schedulesPayload = req.body.schedules;
 
       // Handle weeklyRules format if sent by frontend form
@@ -84,5 +84,3 @@ export class ScheduleController {
     }
   }
 }
-
-

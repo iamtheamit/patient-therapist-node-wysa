@@ -33,11 +33,13 @@ function getRefreshTokenFromRequest(req: Request): string | undefined {
 
 function getRefreshCookieOptions() {
   const isProd = process.env.NODE_ENV === 'production';
+  const sameSite = config.cookieSameSite;
 
   return {
     httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? ('none' as const) : ('lax' as const),
+    // secure must be true when sameSite is 'none' (browser requirement)
+    secure: isProd || sameSite === 'none',
+    sameSite,
     path: '/api/v1/auth',
     maxAge: config.refreshTokenExpiresIn * 1000,
   };

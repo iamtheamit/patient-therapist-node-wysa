@@ -87,6 +87,18 @@ export class AppointmentService {
         });
       }
 
+      // 1.5 Delete any pre-existing slot holds by the same patient for this therapist to prevent self-conflict (only for recurring slot booking upgrade)
+      if (dto.bookingType === BookingType.RECURRING) {
+        await tx.appointment.deleteMany({
+          where: {
+            patientId,
+            therapistId: dto.therapistId,
+            startTime: { in: candidateSlots.map((s) => s.startTime) },
+            appointmentStatus: AppointmentStatus.HOLD,
+          },
+        });
+      }
+
       // 2. Clean expired holds & check conflicts for each candidate slot
       for (const slot of candidateSlots) {
         await appointmentRepo.cleanExpiredHoldsForSlot(tx, dto.therapistId, slot.startTime);
@@ -134,7 +146,7 @@ export class AppointmentService {
       }
 
       return createdAppointments;
-    });
+    }, { maxWait: 15000, timeout: 15000 });
   }
 
   public async simulatePayment(patientId: string, appointmentId: string, dto: SimulatePaymentDto): Promise<Appointment> {
@@ -235,7 +247,7 @@ export class AppointmentService {
         });
         return updated;
       }
-    });
+    }, { maxWait: 15000, timeout: 15000 });
   }
 
   public async cancelAppointment(userId: string, role: string, appointmentId: string): Promise<Appointment> {
@@ -352,11 +364,13 @@ export class AppointmentService {
     notes?: string
   ): Promise<Appointment[]> {
     return prisma.$transaction(async (tx) => {
+
       // 1. Fetch all appointments in the series
       const seriesAppts = await tx.appointment.findMany({
         where: { seriesId, patientId },
         orderBy: { startTime: 'asc' },
       });
+
 
       if (seriesAppts.length === 0) {
         throw new NotFoundError(APPOINTMENT_MESSAGES.NOT_FOUND);
@@ -421,6 +435,6 @@ export class AppointmentService {
       });
 
       return confirmed;
-    });
+    }, { maxWait: 15000, timeout: 30000 });
   }
 }

@@ -14,5 +14,8 @@ export const config = {
   holdDurationSeconds: process.env.SLOT_HOLD_DURATION_SECONDS
     ? parseInt(process.env.SLOT_HOLD_DURATION_SECONDS, 10)
     : 60, // Default 1 minute (60 seconds)
+  corsAllowedOrigins: process.env.CORS_ALLOWED_ORIGINS
+    ? process.env.CORS_ALLOWED_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean)
+    : [],
 };
 

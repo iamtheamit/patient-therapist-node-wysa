@@ -10,7 +10,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
-    "test:concurrency": "ts-node src/tests/concurrency.test.ts"
+    "test:concurrency": "ts-node src/tests/concurrency.test.ts",
+    "test:cors": "ts-node src/tests/cors.test.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

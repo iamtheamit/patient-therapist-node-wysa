@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { Role } from '@prisma/client';
 import { UserRepository } from '../repositories/userRepository';
 import { RegisterSchema, LoginSchema } from '../validators/authValidator';
 import { ConflictError, UnauthorizedError, NotFoundError } from '../shared/errors';
@@ -39,7 +40,7 @@ export class AuthService {
       name: payload.name,
       email: payload.email,
       passwordHash,
-      role: payload.role,
+      role: Role.PATIENT,
     });
 
     return this.generateTokens(user);

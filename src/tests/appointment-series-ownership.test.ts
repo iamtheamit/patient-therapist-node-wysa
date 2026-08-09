@@ -30,8 +30,11 @@ async function createUser(role: string, email: string, name: string): Promise<Te
 }
 
 function signToken(user: TestUser): string {
-  return jwt.sign({ sub: user.id, email: user.email, role: user.role }, config.jwtSecret, {
+  return jwt.sign({ sub: user.id, email: user.email, role: user.role, tokenType: 'access' }, config.jwtSecret, {
+    algorithm: 'HS256',
     expiresIn: '1h',
+    issuer: config.jwtIssuer,
+    audience: config.jwtAudience,
   });
 }
 

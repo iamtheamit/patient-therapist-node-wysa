@@ -3,9 +3,11 @@ import { ScheduleService } from '../../../services/scheduleService';
 import { updateScheduleSchema } from '../../../validators/scheduleValidator';
 import { sendSuccess } from '../../../shared/responses';
 import { BadRequestError, ForbiddenError } from '../../../shared/errors';
-import { SCHEDULE_MESSAGES } from '../../../shared/constants';
+import { SCHEDULE_MESSAGES, DOMAIN_CONSTANTS, HttpStatus } from '../../../shared/constants';
+
 
 const service = new ScheduleService();
+
 
 function getRequestedTherapistId(req: Request): string | undefined {
   return req.params.therapistId || req.user?.id;
@@ -37,7 +39,7 @@ export class ScheduleController {
 
       ensureTherapistOwnership(req, therapistId);
       const schedule = await service.getTherapistSchedule(therapistId);
-      sendSuccess(res, schedule, SCHEDULE_MESSAGES.FETCH_SUCCESS, 200);
+      sendSuccess(res, schedule, SCHEDULE_MESSAGES.FETCH_SUCCESS, HttpStatus.OK);
     } catch (err) {
       next(err);
     }
@@ -56,8 +58,9 @@ export class ScheduleController {
 
       // Handle weeklyRules format if sent by frontend form
       if (!schedulesPayload && Array.isArray(req.body.weeklyRules)) {
-        const slotDuration = req.body.slotDurationMinutes || 50;
-        const bufferDuration = req.body.bufferDurationMinutes ?? 10;
+        const slotDuration = req.body.slotDurationMinutes || DOMAIN_CONSTANTS.DEFAULT_SLOT_DURATION_MINUTES;
+        const bufferDuration = req.body.bufferDurationMinutes ?? DOMAIN_CONSTANTS.DEFAULT_BUFFER_DURATION_MINUTES;
+
         schedulesPayload = req.body.weeklyRules
           .filter((rule: any) => rule.isEnabled)
           .map((rule: any) => ({
@@ -75,10 +78,11 @@ export class ScheduleController {
       const parsed = updateScheduleSchema.parse({ schedules: schedulesPayload || [] });
       const effectiveFrom = req.body.effectiveFrom ? new Date(req.body.effectiveFrom) : new Date();
       const updated = await service.updateTherapistSchedule(therapistId, parsed.schedules, effectiveFrom);
-      sendSuccess(res, updated, SCHEDULE_MESSAGES.UPDATE_SUCCESS, 200);
+      sendSuccess(res, updated, SCHEDULE_MESSAGES.UPDATE_SUCCESS, HttpStatus.OK);
     } catch (err) {
       next(err);
     }
   }
 }
+
 

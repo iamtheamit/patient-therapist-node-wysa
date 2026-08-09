@@ -1,7 +1,10 @@
 import { AppointmentRepository } from '../repositories/appointmentRepository';
 import { AppointmentStatus } from '@prisma/client';
+import { DOMAIN_CONSTANTS } from '../shared/constants';
 
 const appointmentRepo = new AppointmentRepository();
+const limit = DOMAIN_CONSTANTS.DEFAULT_DASHBOARD_LIMIT;
+
 
 export interface PatientDashboardData {
   role: 'PATIENT';
@@ -48,11 +51,12 @@ export class DashboardService {
       recentAppointments,
     ] = await Promise.all([
       appointmentRepo.countByPatientStatuses(patientId, [AppointmentStatus.COMPLETED]),
-      appointmentRepo.findUpcomingForPatient(patientId, 5),
+      appointmentRepo.findUpcomingForPatient(patientId, limit),
       appointmentRepo.findActiveHoldsForPatient(patientId),
       appointmentRepo.countDistinctTherapists(patientId),
-      appointmentRepo.findRecentForPatient(patientId, 5),
+      appointmentRepo.findRecentForPatient(patientId, limit),
     ]);
+
 
     // Map DB field `appointmentStatus` → `status` for frontend consistency
     const mapAppointment = (appt: any) => ({
@@ -93,8 +97,8 @@ export class DashboardService {
       totalPatientsCount,
     ] = await Promise.all([
       appointmentRepo.findTodayAppointments(therapistId),
-      appointmentRepo.findUpcomingForTherapist(therapistId, 5),
-      appointmentRepo.findRecentForTherapist(therapistId, 5),
+      appointmentRepo.findUpcomingForTherapist(therapistId, limit),
+      appointmentRepo.findRecentForTherapist(therapistId, limit),
       appointmentRepo.countByTherapistStatuses(therapistId, [AppointmentStatus.COMPLETED]),
       appointmentRepo.countPendingHoldsForTherapist(therapistId),
       appointmentRepo.countDistinctPatients(therapistId),

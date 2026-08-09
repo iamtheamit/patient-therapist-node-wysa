@@ -91,16 +91,12 @@ export const swaggerDocument = {
       },
       RefreshRequest: {
         type: 'object',
-        required: ['refreshToken'],
-        properties: {
-          refreshToken: { type: 'string' },
-        },
+        properties: {},
       },
       AuthResponse: {
         type: 'object',
         properties: {
           accessToken: { type: 'string' },
-          refreshToken: { type: 'string' },
           tokenType: { type: 'string', example: 'Bearer' },
           expiresIn: { type: 'integer', example: 900 },
           user: {
@@ -260,10 +256,6 @@ export const swaggerDocument = {
       post: {
         tags: ['Authentication'],
         summary: 'Refresh access token',
-        requestBody: {
-          required: true,
-          content: { 'application/json': { schema: { $ref: '#/components/schemas/RefreshRequest' } } },
-        },
         responses: {
           '200': { description: 'Token refreshed successfully' },
           '401': { description: 'Invalid refresh token' },

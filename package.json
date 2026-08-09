@@ -11,7 +11,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "prisma db seed",
     "test:concurrency": "ts-node src/tests/concurrency.test.ts",
-    "test:cors": "ts-node src/tests/cors.test.ts"
+    "test:cors": "ts-node src/tests/cors.test.ts",
+    "test:therapist-stats": "ts-node src/tests/therapist-stats.test.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"

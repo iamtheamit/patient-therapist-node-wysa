@@ -31,6 +31,13 @@ const envSchema = z.object({
     .refine((value) => Number.isInteger(value) && value > 0, {
       message: 'REFRESH_TOKEN_EXPIRES_IN must be a positive integer',
     }),
+  REFRESH_TOKEN_COOKIE_NAME: z
+    .string()
+    .optional()
+    .transform((value) => (value ? value : 'refresh_token'))
+    .refine((value) => value.length > 0, {
+      message: 'REFRESH_TOKEN_COOKIE_NAME must be a non-empty string',
+    }),
   SLOT_HOLD_DURATION_SECONDS: z
     .string()
     .optional()
@@ -59,6 +66,7 @@ export const config = {
   jwtAudience: env.JWT_AUDIENCE,
   accessTokenExpiresIn: env.ACCESS_TOKEN_EXPIRES_IN,
   refreshTokenExpiresIn: env.REFRESH_TOKEN_EXPIRES_IN,
+  refreshTokenCookieName: env.REFRESH_TOKEN_COOKIE_NAME,
   holdDurationSeconds: env.SLOT_HOLD_DURATION_SECONDS,
   corsAllowedOrigins: env.CORS_ALLOWED_ORIGINS
     ? env.CORS_ALLOWED_ORIGINS.split(',').map((origin) => origin.trim()).filter(Boolean)

@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { DashboardService } from '../../../services/dashboardService';
 import { sendSuccess } from '../../../shared/responses';
-import { DASHBOARD_MESSAGES } from '../../../shared/constants';
+import { DASHBOARD_MESSAGES, HttpStatus } from '../../../shared/constants';
 
 const dashboardService = new DashboardService();
 
@@ -13,13 +13,14 @@ export class DashboardController {
 
       if (role === 'PATIENT') {
         const data = await dashboardService.getPatientDashboard(userId);
-        sendSuccess(res, data, DASHBOARD_MESSAGES.PATIENT_SUCCESS, 200);
+        sendSuccess(res, data, DASHBOARD_MESSAGES.PATIENT_SUCCESS, HttpStatus.OK);
       } else {
         const data = await dashboardService.getTherapistDashboard(userId);
-        sendSuccess(res, data, DASHBOARD_MESSAGES.THERAPIST_SUCCESS, 200);
+        sendSuccess(res, data, DASHBOARD_MESSAGES.THERAPIST_SUCCESS, HttpStatus.OK);
       }
     } catch (err) {
       next(err);
     }
   }
 }
+

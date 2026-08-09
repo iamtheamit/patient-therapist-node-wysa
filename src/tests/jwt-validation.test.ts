@@ -9,9 +9,11 @@ process.env.JWT_AUDIENCE = 'wysa-app';
 process.env.ACCESS_TOKEN_EXPIRES_IN = process.env.ACCESS_TOKEN_EXPIRES_IN || '900';
 process.env.REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || '2592000';
 
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { Role } from '@prisma/client';
-import { AuthService } from '../internal/services/auth.service';
+import { AuthService } from '../internal/services/authService';
+
 import { authenticateToken } from '../internal/middleware/authMiddleware';
 import { config } from '../config';
 import { UnauthorizedError } from '../internal/shared/errors';
@@ -19,25 +21,25 @@ import { prisma } from '../internal/infrastructure/database/prismaClient';
 
 const authService = new AuthService();
 
-function createAccessToken(overrides: Partial<jwt.SignOptions & { payload?: Record<string, unknown> }> = {}) {
-  const payload = { sub: 'test-user', email: 'test@example.com', role: 'PATIENT', tokenType: 'access', ...(overrides.payload || {}) };
+function createAccessToken({ payload: payloadOverrides, ...signOptions }: Partial<jwt.SignOptions & { payload?: Record<string, unknown> }> = {}) {
+  const payload = { sub: 'test-user', email: 'test@example.com', role: 'PATIENT', tokenType: 'access', ...(payloadOverrides || {}) };
   return jwt.sign(payload, config.jwtSecret, {
     algorithm: 'HS256',
     issuer: config.jwtIssuer,
     audience: config.jwtAudience,
     expiresIn: '1h',
-    ...(overrides as jwt.SignOptions),
+    ...signOptions,
   });
 }
 
-function createRefreshToken(overrides: Partial<jwt.SignOptions & { payload?: Record<string, unknown> }> = {}) {
-  const payload = { sub: 'test-user', tokenType: 'refresh', ...(overrides.payload || {}) };
+function createRefreshToken({ payload: payloadOverrides, ...signOptions }: Partial<jwt.SignOptions & { payload?: Record<string, unknown> }> = {}) {
+  const payload = { sub: 'test-user', tokenType: 'refresh', ...(payloadOverrides || {}) };
   return jwt.sign(payload, config.jwtRefreshSecret, {
     algorithm: 'HS256',
     issuer: config.jwtIssuer,
     audience: config.jwtAudience,
     expiresIn: '1h',
-    ...(overrides as jwt.SignOptions),
+    ...signOptions,
   });
 }
 
@@ -50,6 +52,10 @@ function runAuthMiddleware(token: string) {
   });
 
   return { middlewareError, req };
+}
+
+function assertUnauthorized(error: unknown, message: string) {
+  assert(error instanceof UnauthorizedError, message);
 }
 
 function assert(condition: boolean, message: string) {
@@ -89,15 +95,59 @@ async function runJwtValidationTests() {
 
   console.log('PASS: Valid access token accepted');
 
-  // Test 2: Expired access token
+  // Test 2: JWT with tokenType="refresh"
+  const refreshTypeToken = createAccessToken({ payload: { tokenType: 'refresh' } });
+  const refreshTypeResult = runAuthMiddleware(refreshTypeToken);
+  assertUnauthorized(refreshTypeResult.middlewareError, 'JWT with tokenType=refresh should be rejected with UnauthorizedError');
+
+  console.log('PASS: tokenType=refresh access token rejected');
+
+  // Test 3: JWT without tokenType
+  const missingTokenTypeToken = jwt.sign(
+    { sub: 'test-user', email: 'test@example.com', role: 'PATIENT' },
+    config.jwtSecret,
+    {
+      algorithm: 'HS256',
+      issuer: config.jwtIssuer,
+      audience: config.jwtAudience,
+      expiresIn: '1h',
+    }
+  );
+  const missingTokenTypeResult = runAuthMiddleware(missingTokenTypeToken);
+  assertUnauthorized(missingTokenTypeResult.middlewareError, 'JWT without tokenType should be rejected with UnauthorizedError');
+
+  console.log('PASS: Missing tokenType access token rejected');
+
+  // Test 4: JWT with tokenType=undefined
+  const undefinedTokenTypeToken = createAccessToken({ payload: { tokenType: undefined } });
+  const undefinedTokenTypeResult = runAuthMiddleware(undefinedTokenTypeToken);
+  assertUnauthorized(undefinedTokenTypeResult.middlewareError, 'JWT with tokenType=undefined should be rejected with UnauthorizedError');
+
+  console.log('PASS: tokenType=undefined access token rejected');
+
+  // Test 5: JWT with tokenType=null
+  const nullTokenTypeToken = createAccessToken({ payload: { tokenType: null } });
+  const nullTokenTypeResult = runAuthMiddleware(nullTokenTypeToken);
+  assertUnauthorized(nullTokenTypeResult.middlewareError, 'JWT with tokenType=null should be rejected with UnauthorizedError');
+
+  console.log('PASS: tokenType=null access token rejected');
+
+  // Test 6: JWT with tokenType="random"
+  const randomTokenTypeToken = createAccessToken({ payload: { tokenType: 'random' } });
+  const randomTokenTypeResult = runAuthMiddleware(randomTokenTypeToken);
+  assertUnauthorized(randomTokenTypeResult.middlewareError, 'JWT with tokenType=random should be rejected with UnauthorizedError');
+
+  console.log('PASS: tokenType=random access token rejected');
+
+  // Test 7: Expired access token
   const expiredToken = createAccessToken({ expiresIn: '1ms' });
   await new Promise((resolve) => setTimeout(resolve, 10));
   const expiredResult = runAuthMiddleware(expiredToken);
-  assert(Boolean(expiredResult.middlewareError), 'Expired token should be rejected');
+  assertUnauthorized(expiredResult.middlewareError, 'Expired token should be rejected with UnauthorizedError');
 
   console.log('PASS: Expired access token rejected');
 
-  // Test 3: Wrong signature
+  // Test 8: Wrong signature
   const wrongSignatureToken = jwt.sign(
     { sub: 'test-user', email: 'test@example.com', role: 'PATIENT', tokenType: 'access' },
     'incorrect-secret-00000000000000000000000000',
@@ -109,11 +159,11 @@ async function runJwtValidationTests() {
     }
   );
   const wrongSignatureResult = runAuthMiddleware(wrongSignatureToken);
-  assert(Boolean(wrongSignatureResult.middlewareError), 'Token signed with wrong secret should be rejected');
+  assertUnauthorized(wrongSignatureResult.middlewareError, 'Token signed with wrong secret should be rejected with UnauthorizedError');
 
   console.log('PASS: Wrong-signature access token rejected');
 
-  // Test 4: Wrong algorithm
+  // Test 9: Wrong algorithm
   const wrongAlgToken = jwt.sign(
     { sub: 'test-user', email: 'test@example.com', role: 'PATIENT', tokenType: 'access' },
     config.jwtSecret,
@@ -125,11 +175,11 @@ async function runJwtValidationTests() {
     }
   );
   const wrongAlgResult = runAuthMiddleware(wrongAlgToken);
-  assert(Boolean(wrongAlgResult.middlewareError), 'Token signed with wrong algorithm should be rejected');
+  assertUnauthorized(wrongAlgResult.middlewareError, 'Token signed with wrong algorithm should be rejected with UnauthorizedError');
 
   console.log('PASS: Wrong-algorithm access token rejected');
 
-  // Test 5: Wrong issuer
+  // Test 10: Wrong issuer
   const wrongIssuerToken = jwt.sign(
     { sub: 'test-user', email: 'test@example.com', role: 'PATIENT', tokenType: 'access' },
     config.jwtSecret,
@@ -141,11 +191,11 @@ async function runJwtValidationTests() {
     }
   );
   const wrongIssuerResult = runAuthMiddleware(wrongIssuerToken);
-  assert(Boolean(wrongIssuerResult.middlewareError), 'Token with wrong issuer should be rejected');
+  assertUnauthorized(wrongIssuerResult.middlewareError, 'Token with wrong issuer should be rejected with UnauthorizedError');
 
   console.log('PASS: Wrong-issuer access token rejected');
 
-  // Test 6: Wrong audience
+  // Test 11: Wrong audience
   const wrongAudienceToken = jwt.sign(
     { sub: 'test-user', email: 'test@example.com', role: 'PATIENT', tokenType: 'access' },
     config.jwtSecret,
@@ -157,36 +207,44 @@ async function runJwtValidationTests() {
     }
   );
   const wrongAudienceResult = runAuthMiddleware(wrongAudienceToken);
-  assert(Boolean(wrongAudienceResult.middlewareError), 'Token with wrong audience should be rejected');
+  assertUnauthorized(wrongAudienceResult.middlewareError, 'Token with wrong audience should be rejected with UnauthorizedError');
 
   console.log('PASS: Wrong-audience access token rejected');
 
-  // Test 7: Valid refresh token
+  // Test 12: Valid refresh token and refresh-session rotation
+  const authUserEmail = `jwt-validation-${Date.now()}@example.com`;
   const registerResult = await authService.register({
     name: 'JWT Validation User',
-    email: `jwt-validation-${Date.now()}@example.com`,
+    email: authUserEmail,
     password: 'Password123!',
   });
 
-  const validRefreshToken = jwt.sign(
-    { sub: registerResult.user.id, tokenType: 'refresh' },
-    config.jwtRefreshSecret,
-    {
-      algorithm: 'HS256',
-      issuer: config.jwtIssuer,
-      audience: config.jwtAudience,
-      expiresIn: '1h',
-    }
-  );
+  const validRefreshToken = registerResult.refreshToken;
+  assert(typeof validRefreshToken === 'string' && validRefreshToken.length > 0, 'Registration should return a refresh token');
 
   const refreshResult = await authService.refreshToken(validRefreshToken);
   assert(typeof refreshResult.accessToken === 'string' && refreshResult.accessToken.length > 0, 'Valid refresh token should return a new access token');
+  assert(typeof refreshResult.refreshToken === 'string' && refreshResult.refreshToken.length > 0, 'Refresh endpoint should return a new refresh token');
+  assert(refreshResult.refreshToken !== validRefreshToken, 'Refresh token rotation must issue a new token');
 
-  console.log('PASS: Valid refresh token accepted');
+  const originalTokenHash = crypto.createHash('sha256').update(validRefreshToken, 'utf8').digest('hex');
+  const originalSession = await prisma.refreshSession.findUnique({ where: { tokenHash: originalTokenHash } });
+  assert(originalSession?.revokedAt instanceof Date, 'Original refresh session should be revoked after rotation');
+  assert(typeof originalSession?.replacedBySessionId === 'string', 'Original refresh session should record the replacement session');
 
-  await prisma.user.deleteMany({ where: { id: registerResult.user.id } });
+  console.log('PASS: Valid refresh token accepted and session rotated');
 
-  // Test 8: Access token supplied to refresh endpoint
+  // Test 13: Reuse of rotated refresh token must fail
+  try {
+    await authService.refreshToken(validRefreshToken);
+    throw new Error('Rotated refresh token should not be accepted');
+  } catch (err) {
+    assert(err instanceof UnauthorizedError, 'Rotated refresh token reuse should be rejected with UnauthorizedError');
+  }
+
+  console.log('PASS: Rotated refresh token reuse rejected');
+
+  // Test 14: Access token supplied to refresh endpoint
   try {
     await authService.refreshToken(validAccessToken);
     throw new Error('Access token should not be accepted by refresh endpoint');
@@ -196,7 +254,9 @@ async function runJwtValidationTests() {
 
   console.log('PASS: Access token rejected by refresh endpoint');
 
-  // Test 9: Refresh token signed using access-token secret
+  await prisma.user.deleteMany({ where: { email: authUserEmail } });
+
+  // Test 15: Refresh token signed using access-token secret
   const badRefreshToken = jwt.sign(
     { sub: 'test-user', tokenType: 'refresh' },
     config.jwtSecret,
@@ -216,7 +276,7 @@ async function runJwtValidationTests() {
 
   console.log('PASS: Refresh token signed with access-secret rejected');
 
-  // Test 10: Access token signed using refresh-token secret
+  // Test 16: Access token signed using refresh-token secret
   const badAccessToken = jwt.sign(
     { sub: 'test-user', email: 'test@example.com', role: 'PATIENT', tokenType: 'access' },
     config.jwtRefreshSecret,
@@ -228,15 +288,15 @@ async function runJwtValidationTests() {
     }
   );
   const badAccessResult = runAuthMiddleware(badAccessToken);
-  assert(Boolean(badAccessResult.middlewareError), 'Access token signed with refresh secret should be rejected');
+  assertUnauthorized(badAccessResult.middlewareError, 'Access token signed with refresh secret should be rejected with UnauthorizedError');
 
   console.log('PASS: Access token signed with refresh-secret rejected');
 
-  // Test 11: Production configuration without JWT_SECRET
+  // Test 17: Production configuration without JWT_SECRET
   await assertConfigFails('JWT_SECRET');
   console.log('PASS: production config without JWT_SECRET fails startup');
 
-  // Test 12: Production configuration without JWT_REFRESH_SECRET
+  // Test 18: Production configuration without JWT_REFRESH_SECRET
   await assertConfigFails('JWT_REFRESH_SECRET');
   console.log('PASS: production config without JWT_REFRESH_SECRET fails startup');
 

@@ -3,7 +3,8 @@ dotenv.config();
 
 import { Role } from '@prisma/client';
 import { prisma } from '../internal/infrastructure/database/prismaClient';
-import { AuthService } from '../internal/services/auth.service';
+import { AuthService } from '../internal/services/authService';
+
 import { registerSchema } from '../internal/validators/authValidator';
 
 const authService = new AuthService();

@@ -59,9 +59,9 @@ model User {
   updatedAt    DateTime @updatedAt
 
   schedules             TherapistSchedule[]         @relation("TherapistSchedules")
-  availabilitySlots     TherapistAvailabilitySlot[] @relation("TherapistAvailabilitySlots")
   patientAppointments   Appointment[]               @relation("PatientAppointments")
   therapistAppointments Appointment[]               @relation("TherapistAppointments")
+  refreshSessions       RefreshSession[]
 }
 
 model TherapistSchedule {
@@ -84,25 +84,6 @@ model TherapistSchedule {
 
   @@index([therapistId, dayOfWeek])
   @@index([therapistId, isActive, effectiveFrom])
-}
-
-model TherapistAvailabilitySlot {
-  id              String   @id @default(uuid())
-  therapistId     String
-  date            String   // "YYYY-MM-DD"
-  startTime       String   // "09:00"
-  endTime         String   // "10:00"
-  appointmentType String?
-  isRecurring     Boolean  @default(false)
-  repeatType      String?
-  repeatFrequency String?
-  recurrenceEndDate String? // "YYYY-MM-DD"
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  therapist User @relation("TherapistAvailabilitySlots", fields: [therapistId], references: [id], onDelete: Cascade)
-
-  @@index([therapistId, date])
 }
 
 model Appointment {

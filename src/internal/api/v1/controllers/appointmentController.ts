@@ -9,9 +9,10 @@ import {
 } from '../../../validators/appointmentValidator';
 import { AppointmentStatus } from '@prisma/client';
 import { sendSuccess } from '../../../shared/responses';
-import { APPOINTMENT_MESSAGES } from '../../../shared/constants';
+import { APPOINTMENT_MESSAGES, HttpStatus } from '../../../shared/constants';
 import { parsePaginationParams } from '../../../shared/helpers/pagination';
 import { ForbiddenError } from '../../../shared/errors';
+
 
 const availabilityService = new AvailabilityService();
 const appointmentService = new AppointmentService();
@@ -33,7 +34,7 @@ export class AppointmentController {
         paginationParams
       );
 
-      sendSuccess(res, slots, APPOINTMENT_MESSAGES.AVAILABILITY_SUCCESS, 200);
+      sendSuccess(res, slots, APPOINTMENT_MESSAGES.AVAILABILITY_SUCCESS, HttpStatus.OK);
     } catch (err) {
       next(err);
     }
@@ -44,7 +45,7 @@ export class AppointmentController {
       const patientId = req.user!.id;
       const parsed = holdSlotSchema.parse(req.body);
       const appointments = await appointmentService.holdSlot(patientId, parsed);
-      sendSuccess(res, appointments, APPOINTMENT_MESSAGES.HOLD_SUCCESS, 201);
+      sendSuccess(res, appointments, APPOINTMENT_MESSAGES.HOLD_SUCCESS, HttpStatus.CREATED);
     } catch (err) {
       next(err);
     }
@@ -55,7 +56,7 @@ export class AppointmentController {
       const patientId = req.user!.id;
       const holdId = req.params.holdId;
       const result = await appointmentService.releaseHold(patientId, holdId);
-      sendSuccess(res, result, 'Slot hold released successfully', 200);
+      sendSuccess(res, result, 'Slot hold released successfully', HttpStatus.OK);
     } catch (err) {
       next(err);
     }
@@ -67,7 +68,7 @@ export class AppointmentController {
       const appointmentId = req.params.id;
       const parsed = simulatePaymentSchema.parse(req.body);
       const result = await appointmentService.simulatePayment(patientId, appointmentId, parsed);
-      sendSuccess(res, result, APPOINTMENT_MESSAGES.PAYMENT_SUCCESS, 200);
+      sendSuccess(res, result, APPOINTMENT_MESSAGES.PAYMENT_SUCCESS, HttpStatus.OK);
     } catch (err) {
       next(err);
     }
@@ -87,7 +88,7 @@ export class AppointmentController {
           appointments: confirmed.map((a) => ({ id: a.id, startTime: a.startTime, endTime: a.endTime })),
         },
         APPOINTMENT_MESSAGES.PAYMENT_SUCCESS,
-        200
+        HttpStatus.OK
       );
     } catch (err) {
       next(err);
@@ -100,7 +101,7 @@ export class AppointmentController {
       const role = req.user!.role;
       const appointmentId = req.params.id;
       const cancelled = await appointmentService.cancelAppointment(userId, role, appointmentId);
-      sendSuccess(res, cancelled, APPOINTMENT_MESSAGES.CANCEL_SUCCESS, 200);
+      sendSuccess(res, cancelled, APPOINTMENT_MESSAGES.CANCEL_SUCCESS, HttpStatus.OK);
     } catch (err) {
       next(err);
     }
@@ -112,7 +113,7 @@ export class AppointmentController {
       const role = req.user!.role;
       const seriesId = req.params.seriesId;
       const result = await appointmentService.cancelSeries(userId, role, seriesId);
-      sendSuccess(res, { count: result.count }, APPOINTMENT_MESSAGES.CANCEL_SERIES_SUCCESS, 200);
+      sendSuccess(res, { count: result.count }, APPOINTMENT_MESSAGES.CANCEL_SERIES_SUCCESS, HttpStatus.OK);
     } catch (err) {
       next(err);
     }
@@ -124,7 +125,7 @@ export class AppointmentController {
       const appointmentId = req.params.id;
       const parsed = updateAppointmentStatusSchema.parse(req.body);
       const updated = await appointmentService.updateAppointmentStatusByTherapist(therapistId, appointmentId, parsed);
-      sendSuccess(res, updated, APPOINTMENT_MESSAGES.STATUS_UPDATE_SUCCESS, 200);
+      sendSuccess(res, updated, APPOINTMENT_MESSAGES.STATUS_UPDATE_SUCCESS, HttpStatus.OK);
     } catch (err) {
       next(err);
     }
@@ -157,7 +158,7 @@ export class AppointmentController {
       };
       const paginationParams = parsePaginationParams(req.query);
       const list = await appointmentService.getTherapistAppointments(therapistId, filters, paginationParams);
-      sendSuccess(res, list, APPOINTMENT_MESSAGES.THERAPIST_FETCH_SUCCESS, 200);
+      sendSuccess(res, list, APPOINTMENT_MESSAGES.THERAPIST_FETCH_SUCCESS, HttpStatus.OK);
     } catch (err) {
       next(err);
     }
@@ -174,7 +175,7 @@ export class AppointmentController {
       };
       const paginationParams = parsePaginationParams(req.query);
       const list = await appointmentService.getPatientAppointments(patientId, filters, paginationParams);
-      sendSuccess(res, list, APPOINTMENT_MESSAGES.PATIENT_FETCH_SUCCESS, 200);
+      sendSuccess(res, list, APPOINTMENT_MESSAGES.PATIENT_FETCH_SUCCESS, HttpStatus.OK);
     } catch (err) {
       next(err);
     }

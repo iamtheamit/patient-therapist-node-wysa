@@ -2,7 +2,8 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import app from './app';
-import { runAutoMigrations } from './internal/bootstrap/database';
+import { runAutoMigrations } from './internal/infrastructure/database/prismaClient';
+
 import { logger } from './internal/shared/logger';
 
 // Run database auto-migration on server startup

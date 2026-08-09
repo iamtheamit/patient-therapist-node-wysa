@@ -34,7 +34,7 @@ export function getCorsOptions(
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'Accept', 'accept'],
-    credentials: false,
+    credentials: true,
     optionsSuccessStatus: 204,
   };
 }

@@ -1,8 +1,7 @@
 import { prisma } from '../infrastructure/database/prismaClient';
 import { Appointment, AppointmentStatus, PaymentStatus, BookingType, RecurrenceFrequency, Prisma } from '@prisma/client';
-import { PaginationParams, formatPaginatedResult } from '../shared/helpers/pagination';
+import { PaginationParams, formatPaginatedResult, generateSlotLockKey, getTodayDateBounds, parseDateString } from '../shared/helpers';
 
-import { generateSlotLockKey } from '../shared/helpers/lockHelper';
 
 export interface CreateHoldParams {
   patientId: string;
@@ -277,16 +276,10 @@ export class AppointmentRepository {
     if (filterObj?.startDate || filterObj?.endDate) {
       const dateCond: Prisma.DateTimeFilter = {};
       if (filterObj.startDate) {
-        const parts = filterObj.startDate.split('-').map(Number);
-        dateCond.gte = parts.length === 3 && !isNaN(parts[0])
-          ? new Date(parts[0], parts[1] - 1, parts[2], 0, 0, 0, 0)
-          : new Date(filterObj.startDate);
+        dateCond.gte = parseDateString(filterObj.startDate, false);
       }
       if (filterObj.endDate) {
-        const parts = filterObj.endDate.split('-').map(Number);
-        dateCond.lte = parts.length === 3 && !isNaN(parts[0])
-          ? new Date(parts[0], parts[1] - 1, parts[2], 23, 59, 59, 999)
-          : new Date(filterObj.endDate);
+        dateCond.lte = parseDateString(filterObj.endDate, true);
       }
       where.startTime = {
         ...(typeof where.startTime === 'object' ? where.startTime : {}),
@@ -428,9 +421,7 @@ export class AppointmentRepository {
   }
 
   public async findTodayAppointments(therapistId: string) {
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const { todayStart, todayEnd } = getTodayDateBounds();
 
     return prisma.appointment.findMany({
       where: {
@@ -491,4 +482,17 @@ export class AppointmentRepository {
       },
     });
   }
+
+  public async countTodayAppointmentsForTherapist(therapistId: string): Promise<number> {
+    const { todayStart, todayEnd } = getTodayDateBounds();
+
+    return prisma.appointment.count({
+      where: {
+        therapistId,
+        startTime: { gte: todayStart, lte: todayEnd },
+        appointmentStatus: { in: [AppointmentStatus.SCHEDULED, AppointmentStatus.COMPLETED] },
+      },
+    });
+  }
 }
+

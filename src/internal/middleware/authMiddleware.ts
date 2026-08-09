@@ -8,7 +8,9 @@ export interface JwtPayload {
   sub: string;
   email: string;
   role: string;
-  tokenType?: 'access' | 'refresh';
+  tokenType?: string;
+  iat?: number;
+  exp?: number;
 }
 
 declare global {
@@ -38,7 +40,17 @@ export function authenticateToken(req: Request, res: Response, next: NextFunctio
       audience: config.jwtAudience,
     }) as JwtPayload;
 
-    if (decoded.tokenType && decoded.tokenType !== 'access') {
+    if (
+      decoded.tokenType !== 'access' ||
+      typeof decoded.sub !== 'string' ||
+      decoded.sub.length === 0 ||
+      typeof decoded.email !== 'string' ||
+      decoded.email.length === 0 ||
+      typeof decoded.role !== 'string' ||
+      decoded.role.length === 0 ||
+      typeof decoded.iat !== 'number' ||
+      typeof decoded.exp !== 'number'
+    ) {
       throw new Error('Invalid token type');
     }
 

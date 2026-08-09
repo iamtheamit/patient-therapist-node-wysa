@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import { HttpStatus } from '../constants/httpStatus';
 
 export interface ApiResponse<T = any> {
   status: boolean;
@@ -10,7 +11,7 @@ export function sendSuccess<T>(
   res: Response,
   data: T,
   message: string = 'Operation completed successfully',
-  statusCode: number = 200
+  statusCode: number = HttpStatus.OK
 ): Response {
   const payload: ApiResponse<T> = {
     status: true,
@@ -23,7 +24,7 @@ export function sendSuccess<T>(
 export function sendError(
   res: Response,
   message: string = 'An error occurred',
-  statusCode: number = 500,
+  statusCode: number = HttpStatus.INTERNAL_SERVER_ERROR,
   details: any = null
 ): Response {
   const payload: ApiResponse = {
@@ -33,4 +34,5 @@ export function sendError(
   };
   return res.status(statusCode).json(payload);
 }
+
 

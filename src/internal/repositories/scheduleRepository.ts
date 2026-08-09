@@ -1,8 +1,10 @@
 import { prisma } from '../infrastructure/database/prismaClient';
 import { TherapistSchedule } from '@prisma/client';
 import { ScheduleItemDto } from '../validators/scheduleValidator';
+import { DOMAIN_CONSTANTS } from '../shared/constants';
 
 export class ScheduleRepository {
+
   public async findByTherapistId(therapistId: string, effectiveDate: Date = new Date()): Promise<TherapistSchedule[]> {
     const allSchedules = await prisma.therapistSchedule.findMany({
       where: {
@@ -70,7 +72,8 @@ export class ScheduleRepository {
           startTime: item.startTime,
           endTime: item.endTime,
           slotDuration: item.slotDuration,
-          bufferDuration: item.bufferDuration ?? 10,
+          bufferDuration: item.bufferDuration ?? DOMAIN_CONSTANTS.DEFAULT_BUFFER_DURATION_MINUTES,
+
           breakStartTime: item.breakStartTime ?? null,
           breakEndTime: item.breakEndTime ?? null,
           isActive: item.isActive ?? true,

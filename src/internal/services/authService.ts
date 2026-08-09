@@ -5,12 +5,13 @@ import { Role } from '@prisma/client';
 import { UserRepository } from '../repositories/userRepository';
 import { RegisterSchema, LoginSchema } from '../validators/authValidator';
 import { ConflictError, UnauthorizedError, NotFoundError } from '../shared/errors';
-import { AUTH_MESSAGES } from '../shared/constants';
+import { AUTH_MESSAGES, DOMAIN_CONSTANTS } from '../shared/constants';
 import { config } from '../../config';
 import { prisma } from '../infrastructure/database/prismaClient';
 
 const userRepo = new UserRepository();
-const refreshTokenByteLength = 64;
+const refreshTokenByteLength = DOMAIN_CONSTANTS.REFRESH_TOKEN_BYTE_LENGTH;
+
 const getAccessTokenExpiresIn = (): number => config.accessTokenExpiresIn;
 const getRefreshTokenExpiresIn = (): number => config.refreshTokenExpiresIn;
 
@@ -39,8 +40,9 @@ export class AuthService {
       throw new ConflictError(AUTH_MESSAGES.EMAIL_EXISTS);
     }
 
-    const saltRounds = 10;
+    const saltRounds = DOMAIN_CONSTANTS.PASSWORD_SALT_ROUNDS;
     const passwordHash = await bcrypt.hash(payload.password, saltRounds);
+
 
     const user = await userRepo.create({
       name: payload.name,
@@ -85,6 +87,7 @@ export class AuthService {
           },
           data: {
             revokedAt: now,
+            lastUsedAt: now,
           },
         });
 
@@ -100,13 +103,20 @@ export class AuthService {
         const newRefreshToken = this.createRefreshToken();
         const newRefreshTokenHash = this.hashToken(newRefreshToken);
 
-        await tx.refreshSession.create({
+        const newSession = await tx.refreshSession.create({
           data: {
             userId: user.id,
             tokenHash: newRefreshTokenHash,
             expiresAt: new Date(Date.now() + getRefreshTokenExpiresIn() * 1000),
             userAgent: metadata?.userAgent,
             ipAddress: metadata?.ipAddress,
+          },
+        });
+
+        await tx.refreshSession.update({
+          where: { id: existingSession.id },
+          data: {
+            replacedBySessionId: newSession.id,
           },
         });
 

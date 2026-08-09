@@ -155,8 +155,42 @@ export class AppointmentService {
       // Acquire advisory lock for appointment slot inside transaction
       await appointmentRepo.acquireSlotLock(tx, appt.therapistId, appt.startTime, appt.endTime);
 
+      // Re-fetch the appointment inside the lock to get the latest committed state
+      const freshAppt = await appointmentRepo.findById(appointmentId, tx);
+      if (!freshAppt) {
+        throw new NotFoundError(APPOINTMENT_MESSAGES.NOT_FOUND);
+      }
+      if (freshAppt.appointmentStatus !== AppointmentStatus.HOLD) {
+        throw new BadRequestError(APPOINTMENT_MESSAGES.INVALID_STATE_FOR_PAYMENT(freshAppt.appointmentStatus));
+      }
+
+      // Check that no other appointment for this slot is already SCHEDULED (concurrent confirm guard)
+      const slotAlreadyBooked = await tx.appointment.findFirst({
+        where: {
+          therapistId: appt.therapistId,
+          startTime: appt.startTime,
+          endTime: appt.endTime,
+          appointmentStatus: AppointmentStatus.SCHEDULED,
+          id: { not: appointmentId },
+        },
+      });
+      if (slotAlreadyBooked) {
+        // Mark this hold as expired since the slot is taken
+        await appointmentRepo.updateStatus(appointmentId, AppointmentStatus.HOLD_EXPIRED, PaymentStatus.FAILED, tx);
+        logger.warn('SLOT_ALREADY_BOOKED_ON_CONFIRM', {
+          holdId: appointmentId,
+          patientId,
+          therapistId: appt.therapistId,
+          startTime: appt.startTime.toISOString(),
+          endTime: appt.endTime.toISOString(),
+          operation: 'PAYMENT',
+          result: 'SLOT_TAKEN',
+        });
+        throw new ConflictError(APPOINTMENT_MESSAGES.SLOT_CONFLICT(appt.startTime.toISOString()));
+      }
+
       // Check hold expiration
-      if (appt.holdExpiresAt && appt.holdExpiresAt <= new Date()) {
+      if (freshAppt.holdExpiresAt && freshAppt.holdExpiresAt <= new Date()) {
         await appointmentRepo.updateStatus(appointmentId, AppointmentStatus.HOLD_EXPIRED, PaymentStatus.FAILED, tx);
         logger.warn('HOLD_EXPIRED', {
           holdId: appointmentId,
